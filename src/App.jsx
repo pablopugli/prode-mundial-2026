@@ -373,7 +373,8 @@ export default function App() {
       </header>
       <nav className="nav">{tabs.map(t => <button key={t.id} className={`nav-tab ${tab === t.id ? "active" : ""}`} onClick={() => setTab(t.id)}>{t.label}</button>)}</nav>
       <main className="main">
-        {tab === "partidos" && <TabPartidos usuario={usuario} partidos={partidos} picks={picks} onPickSaved={handlePickSaved} />}
+        {tab === "partidos" && <TabPartidos usuario={usuario} partidos={partidos} picks={picks} onPickSaved={handlePickSaved} 
+         {tab === "grupos" && <TabGrupos partidos={partidos} />}                        
         {tab === "tabla" && <TabTabla usuarios={usuarios} allPicks={allPicks} partidos={partidos} />}
         {tab === "admin" && usuario.es_admin && <TabAdmin usuarios={usuarios} partidos={partidos} onAprobar={handleAprobar} onRechazar={handleRechazar} onResultadoCargado={handleResultadoCargado} />}
       </main>
