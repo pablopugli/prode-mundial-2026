@@ -236,9 +236,9 @@ function PartidoCard({ partido, pick, onPickSaved, esAdmin, onResultadoCargado }
       {esAdmin && (
         <div className="resultado-inputs">
           <span style={{ fontSize: 12, color: "var(--texto2)" }}>Resultado:</span>
-          <input className="resultado-input" type="number" min="0" placeholder="0" value={adminGl} onChange={e => setAdminGl(e.target.value)} />
+          <input id={`rgl-${partido.id}`} className="resultado-input" type="number" min="0" placeholder="0" defaultValue={adminGl} onChange={e => setAdminGl(e.target.value)} />
           <span style={{ color: "var(--texto2)", fontFamily: "'Bebas Neue'" }}>-</span>
-          <input className="resultado-input" type="number" min="0" placeholder="0" value={adminGv} onChange={e => setAdminGv(e.target.value)} />
+          <input id={`rgv-${partido.id}`} className="resultado-input" type="number" min="0" placeholder="0" defaultValue={adminGv} onChange={e => setAdminGv(e.target.value)} />
           {esEliminatoria && (
             <div className="clasificado-btns">
               <button className={`clas-btn ${adminClas === partido.local ? "active" : ""}`} onClick={() => setAdminClas(partido.local)}>{partido.local}</button>
@@ -246,8 +246,10 @@ function PartidoCard({ partido, pick, onPickSaved, esAdmin, onResultadoCargado }
             </div>
           )}
           <button className="btn-cargar-res" onClick={() => {
-            if (adminGl === "" || adminGl === null || adminGv === "" || adminGv === null) return;
-            onResultadoCargado(partido.id, { goles_local: Number(adminGl), goles_visitante: Number(adminGv), clasificado: adminClas });
+            const gl = document.getElementById(`rgl-${partido.id}`)?.value;
+            const gv = document.getElementById(`rgv-${partido.id}`)?.value;
+            if (gl === "" || gl === undefined || gv === "" || gv === undefined) return;
+            onResultadoCargado(partido.id, { goles_local: Number(gl), goles_visitante: Number(gv), clasificado: adminClas });
           }}>CARGAR</button>
         </div>
       )}
