@@ -443,17 +443,33 @@ function TabGrupos({ partidos, grupoInicial }) {
 function TabPartidos({ usuario, partidos, picks, onPickSaved, onGrupoClick, allPicks, usuarios }) {
   const [filtroFecha, setFiltroFecha] = useState("");
   const [filtroGrupo, setFiltroGrupo] = useState("");
+  const [soloPendientes, setSoloPendientes] = useState(false);
 
   if (partidos.length === 0) return <div className="loading">Cargando partidos...</div>;
 
   const fechas = [...new Set(partidos.map(p => p.fecha))];
   const grupos = [...new Set(partidos.filter(p => p.grupo).map(p => p.grupo))].sort();
 
+  const cantPendientes = partidos.filter(p => {
+    const estado = estadoPartido(p);
+    if (estado === "cerrado") return false;
+    const pick = picks[p.id];
+    return !pick || pick.goles_local === null || pick.goles_local === undefined;
+  }).length;
+
   const filtrados = partidos.filter(p => {
     if (filtroFecha && p.fecha !== filtroFecha) return false;
     if (filtroGrupo && p.grupo !== filtroGrupo) return false;
+    if (soloPendientes) {
+      const estado = estadoPartido(p);
+      if (estado === "cerrado") return false;
+      const pick = picks[p.id];
+      if (pick && pick.goles_local !== null && pick.goles_local !== undefined) return false;
+    }
     return true;
   });
+
+  const hayFiltros = filtroFecha || filtroGrupo || soloPendientes;
 
   return (
     <div>
@@ -475,9 +491,15 @@ function TabPartidos({ usuario, partidos, picks, onPickSaved, onGrupoClick, allP
           <option value="">🏆 Todos los grupos</option>
           {grupos.map(g => <option key={g} value={g}>Grupo {g}</option>)}
         </select>
-        {(filtroFecha || filtroGrupo) && (
-          <button onClick={() => { setFiltroFecha(""); setFiltroGrupo(""); }} style={{ background: "none", border: "1px solid var(--borde)", color: "var(--texto2)", borderRadius: 8, padding: "8px 14px", fontSize: 13, fontFamily: "'DM Sans', sans-serif", cursor: "pointer" }}>
-            ✕ Limpiar filtros
+        <button
+          onClick={() => setSoloPendientes(p => !p)}
+          style={{ background: soloPendientes ? "var(--rojo)" : "var(--fondo3)", border: `1px solid ${soloPendientes ? "var(--rojo)" : "var(--borde)"}`, color: soloPendientes ? "#fff" : "var(--texto2)", borderRadius: 8, padding: "8px 14px", fontSize: 13, fontFamily: "'DM Sans', sans-serif", cursor: "pointer", fontWeight: soloPendientes ? 600 : 400 }}
+        >
+          ⚠️ Pendientes {cantPendientes > 0 ? `(${cantPendientes})` : ""}
+        </button>
+        {hayFiltros && (
+          <button onClick={() => { setFiltroFecha(""); setFiltroGrupo(""); setSoloPendientes(false); }} style={{ background: "none", border: "1px solid var(--borde)", color: "var(--texto2)", borderRadius: 8, padding: "8px 14px", fontSize: 13, fontFamily: "'DM Sans', sans-serif", cursor: "pointer" }}>
+            ✕ Limpiar
           </button>
         )}
         <span style={{ fontSize: 13, color: "var(--texto2)", alignSelf: "center", marginLeft: "auto" }}>
@@ -485,7 +507,7 @@ function TabPartidos({ usuario, partidos, picks, onPickSaved, onGrupoClick, allP
         </span>
       </div>
       <ProximoPartido partidos={partidos} />
-      {filtrados.length === 0 && <div className="empty">No hay partidos para los filtros seleccionados</div>}
+      {filtrados.length === 0 && <div className="empty">{soloPendientes ? "🎉 ¡No tenés partidos pendientes!" : "No hay partidos para los filtros seleccionados"}</div>}
       {filtrados.map(p => (
         <PartidoCard key={p.id} partido={p} pick={picks[p.id]} onPickSaved={onPickSaved} esAdmin={false} onResultadoCargado={() => {}} onGrupoClick={onGrupoClick} allPicks={allPicks} usuarios={usuarios} />
       ))}
@@ -1100,6 +1122,35 @@ function TabPicksGlobales({ partidos, allPicks, usuarios }) {
                     <div style={{ fontSize: 12, color: "var(--texto2)", marginBottom: 6 }}>
                       Score más elegido: <span style={{ fontFamily: "'Bebas Neue', cursive", fontSize: 16, color: esAcertado ? "var(--verde)" : "var(--texto)", marginLeft: 4 }}>{top[0].replace("-"," - ")}</span>
                       <span style={{ marginLeft: 6, color: "var(--texto2)" }}>({top[1]} picks{esAcertado ? " ✓" : ""})</span>
+                    </div>
+                  );
+                })()}
+                {(() => {
+                  // Predicción más osada — el pick que nadie más eligió
+                  const scores = {};
+                  aprobados.forEach(u => {
+                    const pk = allPicks[u.id]?.[p.id];
+                    if (!pk || pk.goles_local === null || pk.goles_local === undefined) return;
+                    const key = `${pk.goles_local}-${pk.goles_visitante}`;
+                    scores[key] = (scores[key] || { count: 0, nombre: u.nombre });
+                    scores[key].count++;
+                    scores[key].nombre = u.nombre;
+                  });
+                  const unicos = Object.entries(scores).filter(([, v]) => v.count === 1);
+                  if (unicos.length === 0) return null;
+                  // Elegir el más "loco" — el que más difiere del resultado o del más elegido
+                  const topScore = Object.entries(scores).sort((a,b) => b[1].count - a[1].count)[0]?.[0];
+                  const masLoco = unicos.sort((a, b) => {
+                    const [aL, aV] = a[0].split("-").map(Number);
+                    const [bL, bV] = b[0].split("-").map(Number);
+                    const [tL, tV] = (topScore || "0-0").split("-").map(Number);
+                    return (Math.abs(aL-tL) + Math.abs(aV-tV)) > (Math.abs(bL-tL) + Math.abs(bV-tV)) ? -1 : 1;
+                  })[0];
+                  if (!masLoco) return null;
+                  return (
+                    <div style={{ fontSize: 12, color: "var(--texto2)", marginBottom: 4 }}>
+                      🎲 Pick más osado: <span style={{ fontFamily: "'Bebas Neue', cursive", fontSize: 16, color: "var(--oro)", marginLeft: 4 }}>{masLoco[0].replace("-"," - ")}</span>
+                      <span style={{ marginLeft: 6 }}>({masLoco[1].nombre})</span>
                     </div>
                   );
                 })()}
