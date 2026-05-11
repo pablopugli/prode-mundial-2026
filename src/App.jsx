@@ -362,7 +362,7 @@ export default function App() {
     </div></div></>
   );
 
-  const tabs = [{ id: "partidos", label: "Partidos" }, { id: "tabla", label: "Tabla" }, ...(usuario.es_admin ? [{ id: "admin", label: "⚙️ Admin" }] : [])];
+  const tabs = [{ id: "partidos", label: "Partidos" }, { id: "grupos", label: "Grupos" }, { id: "tabla", label: "Tabla" }, ...(usuario.es_admin ? [{ id: "admin", label: "⚙️ Admin" }] : [])];
 
   return (
     <><style>{css}</style>
