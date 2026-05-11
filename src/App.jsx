@@ -138,12 +138,15 @@ const css = `
   .aviso-hoy { background: rgba(245,197,24,0.1); border: 1px solid var(--oro); border-radius: 8px; padding: 8px 12px; font-size: 12px; color: var(--oro); margin-top: 10px; }
   .pick-cerrado { margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--borde); font-size: 12px; color: var(--texto2); }
   @media (max-width: 600px) { .main { padding: 24px 16px; } .login-card { padding: 36px 24px; } .equipo-nombre { font-size: 14px; } }
-  .alerta-cierre { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); z-index: 999; background: var(--rojo); color: #fff; border-radius: 12px; padding: 14px 20px; display: flex; align-items: center; gap: 12px; box-shadow: 0 4px 20px rgba(255,59,59,0.4); animation: slideUp 0.3s ease-out; max-width: 90vw; }
-  @keyframes slideUp { from { opacity: 0; transform: translateX(-50%) translateY(20px); } to { opacity: 1; transform: translateX(-50%) translateY(0); } }
-  .alerta-cierre-texto { flex: 1; }
-  .alerta-cierre-titulo { font-weight: 700; font-size: 14px; margin-bottom: 2px; }
-  .alerta-cierre-sub { font-size: 12px; opacity: 0.85; }
-  .alerta-cerrar { background: rgba(255,255,255,0.2); border: none; color: #fff; width: 24px; height: 24px; border-radius: 50%; cursor: pointer; font-size: 14px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .resumen-jornada { background: linear-gradient(135deg, #111a15 0%, #1a2820 100%); border: 1px solid var(--verde); border-radius: 14px; padding: 20px 24px; margin-bottom: 24px; }
+  .resumen-titulo { font-family: 'Bebas Neue', cursive; font-size: 22px; color: var(--verde); letter-spacing: 2px; margin-bottom: 4px; }
+  .resumen-fecha { font-size: 12px; color: var(--texto2); margin-bottom: 16px; }
+  .resumen-stats { display: grid; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap: 10px; margin-bottom: 16px; }
+  .resumen-stat { background: var(--fondo3); border-radius: 8px; padding: 10px 12px; text-align: center; }
+  .resumen-stat-val { font-family: 'Bebas Neue', cursive; font-size: 24px; color: var(--verde); }
+  .resumen-stat-label { font-size: 11px; color: var(--texto2); margin-top: 2px; }
+  .resumen-podio { display: flex; flex-direction: column; gap: 6px; }
+  .resumen-jugador { display: flex; align-items: center; gap: 10px; font-size: 13px; }
 `;
 
 function Login({ onLogin }) {
@@ -624,6 +627,7 @@ function TabTabla({ usuarios, allPicks, partidos, esPublica }) {
       </div>
       <div className="section-sub">Actualizada en tiempo real con cada resultado</div>
 
+      <ResumenJornada partidos={partidos} allPicks={allPicks} usuarios={usuarios} />
       {/* Podio animado */}
       {tabla.length >= 2 && (
         <div className="podio-wrap">
@@ -1171,38 +1175,83 @@ function TabPicksGlobales({ partidos, allPicks, usuarios }) {
 }
 
 
-function AlertaCierre({ partidos, picks }) {
-  const [descartados, setDescartados] = useState([]);
-  const [tick, setTick] = useState(0);
+function ResumenJornada({ partidos, allPicks, usuarios }) {
+  const aprobados = usuarios.filter(u => u.aprobado && !u.es_admin);
 
-  useEffect(() => {
-    const id = setInterval(() => setTick(t => t + 1), 30000); // revisar cada 30s
-    return () => clearInterval(id);
-  }, []);
-
-  const proximos = partidos.filter(p => {
-    if (descartados.includes(p.id)) return false;
-    const pick = picks[p.id];
-    if (pick && pick.goles_local !== null && pick.goles_local !== undefined) return false;
-    const inicio = parseFechaPartido(p.fecha, p.hora);
-    const diff = inicio - new Date();
-    return diff > 0 && diff <= 60 * 60 * 1000; // próxima 1 hora
+  // Encontrar la última fecha con todos los partidos jugados
+  const fechas = [...new Set(partidos.map(p => p.fecha))];
+  const ultimaFechaCompleta = fechas.slice().reverse().find(fecha => {
+    const ps = partidos.filter(p => p.fecha === fecha);
+    return ps.length > 0 && ps.every(p => p.goles_local !== null && p.goles_local !== undefined);
   });
 
-  if (proximos.length === 0) return null;
-  const p = proximos[0];
-  const inicio = parseFechaPartido(p.fecha, p.hora);
-  const diff = inicio - new Date();
-  const min = Math.floor(diff / 60000);
+  if (!ultimaFechaCompleta) return null;
+
+  const partidosFecha = partidos.filter(p => p.fecha === ultimaFechaCompleta);
+
+  // Stats globales de la jornada
+  let totalExactos = 0, total1x2 = 0, totalPuntos = 0;
+  const statsPorJugador = aprobados.map(u => {
+    let pts = 0, exactos = 0;
+    partidosFecha.forEach(p => {
+      const pick = allPicks[u.id]?.[p.id];
+      if (!pick) return;
+      const resL = p.goles_local, resV = p.goles_visitante;
+      const pkL = pick.goles_local, pkV = pick.goles_visitante;
+      const res1x2 = resL > resV ? "L" : resL < resV ? "V" : "E";
+      const pk1x2 = pkL > pkV ? "L" : pkL < pkV ? "V" : "E";
+      if (pk1x2 === res1x2) { pts += 1; total1x2++; }
+      if (pkL === resL && pkV === resV) { pts += 2; exactos++; totalExactos++; }
+    });
+    totalPuntos += pts;
+    return { nombre: u.nombre, pts, exactos };
+  }).sort((a, b) => b.pts - a.pts);
+
+  const lider = statsPorJugador[0];
+  const sinPuntos = statsPorJugador.filter(u => u.pts === 0).length;
+  const medallas = ["🥇","🥈","🥉"];
+
+  const compartir = () => {
+    const lineas = statsPorJugador.slice(0, 5).map((u, i) => (medallas[i] || (i+1)+'.') + ' ' + u.nombre + ' — ' + u.pts + 'pts');
+    const texto = '⚽ *PRODE MUNDIAL — ' + ultimaFechaCompleta + '*\n\n' + lineas.join('\n') + '\n\n🎯 Exactos: ' + totalExactos + ' | ✓ 1X2: ' + total1x2 + '';
+    window.open(`https://wa.me/?text=${encodeURIComponent(texto)}`, "_blank");
+  };
 
   return (
-    <div className="alerta-cierre">
-      <span style={{ fontSize: 24 }}>⚠️</span>
-      <div className="alerta-cierre-texto">
-        <div className="alerta-cierre-titulo">¡Cerrando en {min} min!</div>
-        <div className="alerta-cierre-sub">{p.local} vs {p.visitante} · Cargá tu pronóstico</div>
+    <div className="resumen-jornada">
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 8 }}>
+        <div>
+          <div className="resumen-titulo">📋 RESUMEN DE JORNADA</div>
+          <div className="resumen-fecha">{ultimaFechaCompleta} · {partidosFecha.length} partidos</div>
+        </div>
+        <button onClick={compartir} style={{ background: "#25D366", color: "#fff", border: "none", borderRadius: 8, padding: "8px 14px", fontFamily: "'DM Sans', sans-serif", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
+          📲 Compartir
+        </button>
       </div>
-      <button className="alerta-cerrar" onClick={() => setDescartados(d => [...d, p.id])}>✕</button>
+      <div className="resumen-stats">
+        {[
+          { val: totalExactos, label: "Exactos" },
+          { val: total1x2, label: "1X2 acertados" },
+          { val: totalPuntos, label: "Puntos totales" },
+          { val: sinPuntos, label: "Sin puntos" },
+        ].map(({ val, label }) => (
+          <div key={label} className="resumen-stat">
+            <div className="resumen-stat-val">{val}</div>
+            <div className="resumen-stat-label">{label}</div>
+          </div>
+        ))}
+      </div>
+      <div style={{ fontSize: 11, color: "var(--texto2)", textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>Tabla del día</div>
+      <div className="resumen-podio">
+        {statsPorJugador.map((u, i) => (
+          <div key={u.nombre} className="resumen-jugador">
+            <span style={{ width: 24, textAlign: "center", flexShrink: 0 }}>{medallas[i] || `${i+1}.`}</span>
+            <span style={{ flex: 1, fontWeight: i === 0 ? 700 : 400 }}>{u.nombre}</span>
+            <span style={{ fontFamily: "'Bebas Neue', cursive", fontSize: 18, color: u.pts > 0 ? "var(--verde)" : "var(--texto2)" }}>{u.pts}pts</span>
+            {u.exactos > 0 && <span style={{ fontSize: 11, color: "var(--texto2)" }}>🎯{u.exactos}</span>}
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -1344,7 +1393,6 @@ export default function App() {
         {tab === "cuenta" && <TabCuenta usuario={usuario} onPasswordChanged={(u) => { localStorage.setItem("prode_usuario", JSON.stringify(u)); setUsuario(u); }} partidos={partidos} allPicks={allPicks} />}
         {tab === "admin" && usuario.es_admin && <TabAdmin usuarios={usuarios} partidos={partidos} onAprobar={handleAprobar} onRechazar={handleRechazar} onResultadoCargado={handleResultadoCargado} onResetPassword={handleResetPassword} />}
       </main>
-      <AlertaCierre partidos={partidos} picks={picks} />
     </div></>
   );
 }
