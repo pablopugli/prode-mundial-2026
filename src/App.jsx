@@ -194,7 +194,7 @@ function PartidoCard({ partido, pick, onPickSaved, esAdmin, onResultadoCargado }
   return (
     <div className={`partido-card ${tienePick ? "con-pick" : ""}`}>
       <div className="partido-meta">
-        <span className="partido-fecha">{partido.fecha} · {partido.hora}</span>
+        <span className="partido-fecha">{partido.fecha} · {partido.hora}{partido.canal ? ` · 📺 ${partido.canal}` : ''}</span>
         <span className="partido-grupo">{partido.grupo ? `Grupo ${partido.grupo}` : partido.fase}</span>
       </div>
       <div className="partido-equipos">
