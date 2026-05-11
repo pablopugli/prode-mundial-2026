@@ -805,7 +805,7 @@ function TabComoFunciona() {
           "Los pronósticos se cierran 15 minutos antes de que arranque cada partido.",
           "Se puntúa el resultado de los 90 minutos. El alargue y los penales no cuentan para el marcador.",
           "En eliminatorias, si pronosticás empate en 90 min, tenés que elegir quién clasifica para sumar el punto bonus.",
-          "Podés modificar tu pronóstico hasta que cierre el partido.",
+          "Podés modificar tu pronóstico hasta 15 minutos antes del inicio del partido.",
           "Los picks de todos se revelan una vez que el partido cierra.",
         ].map((regla, i) => (
           <div key={i} style={{ display: "flex", gap: 10, marginBottom: 10, fontSize: 14, lineHeight: 1.5 }}>
