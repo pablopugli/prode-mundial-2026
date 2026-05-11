@@ -136,6 +136,7 @@ function Login({ onLogin }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [nombre, setNombre] = useState("");
+  const [telefono, setTelefono] = useState("");
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [loading, setLoading] = useState(false);
@@ -150,14 +151,14 @@ function Login({ onLogin }) {
 
   const handleRegistro = async () => {
     setError(""); setSuccess("");
-    if (!nombre || !email || !password) { setError("Completá todos los campos"); return; }
+    if (!nombre || !email || !password || !telefono) { setError("Completá todos los campos"); return; }
     if (password.length < 6) { setError("La contraseña debe tener al menos 6 caracteres"); return; }
     setLoading(true);
-    const { error } = await supabase.from("usuarios").insert([{ nombre: nombre.trim(), email: email.trim(), password, aprobado: false, es_admin: false }]);
+    const { error } = await supabase.from("usuarios").insert([{ nombre: nombre.trim(), email: email.trim(), password, telefono: telefono.trim(), aprobado: false, es_admin: false }]);
     setLoading(false);
     if (error) { setError(error.code === "23505" ? "Ya existe una cuenta con ese email" : "Error al registrarse"); return; }
     setSuccess("¡Registro exitoso! Tu cuenta está pendiente de aprobación.");
-    setNombre(""); setEmail(""); setPassword("");
+    setNombre(""); setEmail(""); setPassword(""); setTelefono("");
     setTimeout(() => { setTab("login"); setSuccess(""); }, 3000);
   };
 
@@ -181,6 +182,7 @@ function Login({ onLogin }) {
           <>
             <div className="form-group"><label className="form-label">Nombre completo</label><input className="form-input" value={nombre} onChange={e => setNombre(e.target.value)} placeholder="Tu nombre" /></div>
             <div className="form-group"><label className="form-label">Email</label><input className="form-input" type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="tu@email.com" /></div>
+            <div className="form-group"><label className="form-label">Teléfono / WhatsApp</label><input className="form-input" type="tel" value={telefono} onChange={e => setTelefono(e.target.value)} placeholder="Ej: +54 9 11 1234-5678" /></div>
             <div className="form-group"><label className="form-label">Contraseña</label><input className="form-input" type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="Mínimo 6 caracteres" /></div>
             {error && <div className="form-error">{error}</div>}
             {success && <div className="form-success">{success}</div>}
@@ -535,7 +537,7 @@ function TabTabla({ usuarios, allPicks, partidos }) {
   );
 }
 
-function TabAdmin({ usuarios, partidos, onAprobar, onRechazar, onResultadoCargado }) {
+function TabAdmin({ usuarios, partidos, onAprobar, onRechazar, onResultadoCargado, onResetPassword }) {
   const pendientes = usuarios.filter(u => !u.aprobado && !u.es_admin);
   const aprobados = usuarios.filter(u => u.aprobado && !u.es_admin);
   const [fechaAdmin, setFechaAdmin] = useState("");
@@ -567,7 +569,11 @@ function TabAdmin({ usuarios, partidos, onAprobar, onRechazar, onResultadoCargad
       {pendientes.map(u => (
         <div key={u.id} className="admin-card">
           <div className="admin-user-row">
-            <div><div className="admin-user-nombre">{u.nombre}</div><div className="admin-user-email">{u.email}</div></div>
+            <div>
+              <div className="admin-user-nombre">{u.nombre}</div>
+              <div className="admin-user-email">{u.email}</div>
+              {u.telefono && <div style={{ fontSize: 13, color: "var(--texto2)", marginTop: 2 }}>📱 {u.telefono}</div>}
+            </div>
             <div className="admin-btns">
               <span className="estado-badge estado-pendiente">Pendiente</span>
               <button className="btn-aprobar" onClick={() => onAprobar(u.id)}>Aprobar</button>
@@ -580,8 +586,15 @@ function TabAdmin({ usuarios, partidos, onAprobar, onRechazar, onResultadoCargad
       {aprobados.map(u => (
         <div key={u.id} className="admin-card">
           <div className="admin-user-row">
-            <div><div className="admin-user-nombre">{u.nombre}</div><div className="admin-user-email">{u.email}</div></div>
-            <span className="estado-badge estado-aprobado">Aprobado</span>
+            <div>
+              <div className="admin-user-nombre">{u.nombre}</div>
+              <div className="admin-user-email">{u.email}</div>
+              {u.telefono && <div style={{ fontSize: 13, color: "var(--texto2)", marginTop: 2 }}>📱 <a href={`https://wa.me/${u.telefono.replace(/\D/g,'')}`} target="_blank" rel="noreferrer" style={{ color: "var(--verde)", textDecoration: "none" }}>{u.telefono}</a></div>}
+            </div>
+            <div className="admin-btns">
+              <span className="estado-badge estado-aprobado">Aprobado</span>
+              <button style={{ background: "none", border: "1px solid var(--borde)", color: "var(--texto2)", borderRadius: 6, padding: "6px 12px", cursor: "pointer", fontSize: 12, fontFamily: "'DM Sans', sans-serif" }} onClick={() => onResetPassword(u.id, u.nombre)}>Reset pass</button>
+            </div>
           </div>
         </div>
       ))}
@@ -718,9 +731,13 @@ function TabCuenta({ usuario, onPasswordChanged }) {
           <div style={{ fontSize: 12, color: "var(--texto2)", marginBottom: 4 }}>Nombre</div>
           <div style={{ fontSize: 16, fontWeight: 500 }}>{usuario.nombre}</div>
         </div>
-        <div style={{ marginBottom: 24 }}>
+        <div style={{ marginBottom: 20 }}>
           <div style={{ fontSize: 12, color: "var(--texto2)", marginBottom: 4 }}>Email</div>
           <div style={{ fontSize: 16 }}>{usuario.email}</div>
+        </div>
+        <div style={{ marginBottom: 24 }}>
+          <div style={{ fontSize: 12, color: "var(--texto2)", marginBottom: 4 }}>WhatsApp</div>
+          <div style={{ fontSize: 16 }}>{usuario.telefono || <span style={{ color: "var(--texto2)", fontStyle: "italic" }}>No cargado</span>}</div>
         </div>
         <div className="fase-label" style={{ marginTop: 0, marginBottom: 16 }}>Cambiar contraseña</div>
         <div className="form-group"><label className="form-label">Contraseña actual</label><input className="form-input" type="password" value={passActual} onChange={e => setPassActual(e.target.value)} placeholder="••••••••" /></div>
@@ -768,6 +785,11 @@ export default function App() {
   const handleAprobar = async (uid) => { await supabase.from("usuarios").update({ aprobado: true }).eq("id", uid); cargarUsuarios(); };
   const handleRechazar = async (uid) => { await supabase.from("usuarios").delete().eq("id", uid); cargarUsuarios(); };
   const handleResultadoCargado = async (partidoId, resultado) => { await supabase.from("partidos").update(resultado).eq("id", partidoId); cargarPartidos(); };
+  const handleResetPassword = async (uid, nombre) => {
+    const nueva = "mundial2026";
+    await supabase.from("usuarios").update({ password: nueva }).eq("id", uid);
+    alert(`Contraseña de ${nombre} reseteada a: ${nueva}\nMandásela por WhatsApp para que la cambie desde "Mi cuenta".`);
+  };
 
   if (!usuario) return (<><style>{css}</style><Login onLogin={handleLogin} /></>);
   if (!usuario.aprobado) return (
@@ -826,7 +848,7 @@ export default function App() {
         {tab === "llaves" && <TabLlaves partidos={partidos} />}
         {tab === "tabla" && <TabTabla usuarios={usuarios} allPicks={allPicks} partidos={partidos} />}
         {tab === "cuenta" && <TabCuenta usuario={usuario} onPasswordChanged={(u) => { localStorage.setItem("prode_usuario", JSON.stringify(u)); setUsuario(u); }} />}
-        {tab === "admin" && usuario.es_admin && <TabAdmin usuarios={usuarios} partidos={partidos} onAprobar={handleAprobar} onRechazar={handleRechazar} onResultadoCargado={handleResultadoCargado} />}
+        {tab === "admin" && usuario.es_admin && <TabAdmin usuarios={usuarios} partidos={partidos} onAprobar={handleAprobar} onRechazar={handleRechazar} onResultadoCargado={handleResultadoCargado} onResetPassword={handleResetPassword} />}
       </main>
     </div></>
   );
