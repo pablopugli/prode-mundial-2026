@@ -93,6 +93,15 @@ const css = `
   .btn-guardar:disabled { opacity: 0.5; cursor: not-allowed; }
   .save-confirm { font-size: 13px; color: var(--verde); }
   .tabla-wrap { background: var(--fondo2); border: 1px solid var(--borde); border-radius: 12px; overflow: hidden; }
+  .podio-wrap { display: flex; justify-content: center; align-items: flex-end; gap: 12px; margin-bottom: 28px; }
+  .podio-item { display: flex; flex-direction: column; align-items: center; animation: subirPodio 0.6s ease-out both; }
+  .podio-item:nth-child(1) { animation-delay: 0.3s; }
+  .podio-item:nth-child(2) { animation-delay: 0s; }
+  .podio-item:nth-child(3) { animation-delay: 0.5s; }
+  @keyframes subirPodio { from { opacity: 0; transform: translateY(30px); } to { opacity: 1; transform: translateY(0); } }
+  .podio-nombre { font-size: 13px; font-weight: 600; margin-bottom: 6px; text-align: center; max-width: 90px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .podio-pts { font-family: 'Bebas Neue', cursive; font-size: 20px; margin-bottom: 6px; }
+  .podio-base { border-radius: 8px 8px 0 0; width: 80px; display: flex; align-items: center; justify-content: center; font-size: 28px; }
   .tabla { width: 100%; border-collapse: collapse; }
   .tabla th { background: var(--fondo3); padding: 14px 16px; text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: var(--texto2); font-weight: 600; }
   .tabla td { padding: 14px 16px; border-top: 1px solid var(--borde); font-size: 15px; }
@@ -475,6 +484,7 @@ function TabPartidos({ usuario, partidos, picks, onPickSaved, onGrupoClick, allP
           {filtrados.length} partido{filtrados.length !== 1 ? "s" : ""}
         </span>
       </div>
+      <ProximoPartido partidos={partidos} />
       {filtrados.length === 0 && <div className="empty">No hay partidos para los filtros seleccionados</div>}
       {filtrados.map(p => (
         <PartidoCard key={p.id} partido={p} pick={picks[p.id]} onPickSaved={onPickSaved} esAdmin={false} onResultadoCargado={() => {}} onGrupoClick={onGrupoClick} allPicks={allPicks} usuarios={usuarios} />
@@ -483,6 +493,52 @@ function TabPartidos({ usuario, partidos, picks, onPickSaved, onGrupoClick, allP
   );
 }
 
+
+
+function ProximoPartido({ partidos }) {
+  const [tiempo, setTiempo] = useState({ h: 0, m: 0, s: 0, texto: "" });
+
+  const proximo = partidos
+    .filter(p => p.goles_local === null || p.goles_local === undefined)
+    .sort((a, b) => parseFechaPartido(a.fecha, a.hora) - parseFechaPartido(b.fecha, b.hora))[0];
+
+  useEffect(() => {
+    if (!proximo) return;
+    const tick = () => {
+      const inicio = parseFechaPartido(proximo.fecha, proximo.hora);
+      const diff = inicio - new Date();
+      if (diff <= 0) { setTiempo({ h: 0, m: 0, s: 0, texto: "¡Arranca ahora!" }); return; }
+      const d = Math.floor(diff / 86400000);
+      const h = Math.floor((diff % 86400000) / 3600000);
+      const m = Math.floor((diff % 3600000) / 60000);
+      const s = Math.floor((diff % 60000) / 1000);
+      const texto = d > 0 ? `${d}d ${h}h ${m}m` : h > 0 ? `${h}h ${m}m ${s}s` : `${m}m ${s}s`;
+      setTiempo({ h, m, s, texto });
+    };
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, [proximo]);
+
+  if (!proximo) return null;
+
+  return (
+    <div style={{ background: "linear-gradient(135deg, #111a15 0%, #1a2820 100%)", border: "1px solid var(--verde)", borderRadius: 14, padding: "20px 24px", marginBottom: 24 }}>
+      <div style={{ fontSize: 11, color: "var(--verde)", textTransform: "uppercase", letterSpacing: 2, marginBottom: 12 }}>⚽ Próximo partido</div>
+      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
+        <span style={{ flex: 1, fontSize: 18, fontWeight: 700 }}>{proximo.local}</span>
+        <span style={{ fontFamily: "'Bebas Neue', cursive", fontSize: 22, color: "var(--texto2)" }}>VS</span>
+        <span style={{ flex: 1, fontSize: 18, fontWeight: 700, textAlign: "right" }}>{proximo.visitante}</span>
+      </div>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
+        <span style={{ fontSize: 12, color: "var(--texto2)" }}>{proximo.fecha} · {proximo.hora}{proximo.canal ? ` · 📺 ${proximo.canal}` : ""}</span>
+        <div style={{ background: "var(--verde)", color: "#000", fontFamily: "'Bebas Neue', cursive", fontSize: 22, padding: "4px 16px", borderRadius: 8, letterSpacing: 2 }}>
+          {tiempo.texto || "..."}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function calcRacha(uid, partidos, allPicks) {
   const jugados = partidos
@@ -540,7 +596,35 @@ function TabTabla({ usuarios, allPicks, partidos, esPublica }) {
       </div>
       <div className="section-sub">Actualizada en tiempo real con cada resultado</div>
 
-      {/* Mejor jugador por fecha */}
+      {/* Podio animado */}
+      {tabla.length >= 2 && (
+        <div className="podio-wrap">
+          {/* 2do lugar */}
+          {tabla[1] && (
+            <div className="podio-item">
+              <div className="podio-nombre">{tabla[1].nombre}</div>
+              <div className="podio-pts" style={{ color: "#c0c0c0" }}>{tabla[1].pts}pts</div>
+              <div className="podio-base" style={{ height: 70, background: "rgba(192,192,192,0.15)", border: "1px solid #c0c0c0" }}>🥈</div>
+            </div>
+          )}
+          {/* 1er lugar */}
+          <div className="podio-item">
+            <div className="podio-nombre" style={{ fontWeight: 700 }}>{tabla[0].nombre}</div>
+            <div className="podio-pts" style={{ color: "var(--oro)" }}>{tabla[0].pts}pts</div>
+            <div className="podio-base" style={{ height: 100, background: "rgba(245,197,24,0.15)", border: "1px solid var(--oro)" }}>👑</div>
+          </div>
+          {/* 3er lugar */}
+          {tabla[2] && (
+            <div className="podio-item">
+              <div className="podio-nombre">{tabla[2].nombre}</div>
+              <div className="podio-pts" style={{ color: "#cd7f32" }}>{tabla[2].pts}pts</div>
+              <div className="podio-base" style={{ height: 50, background: "rgba(205,127,50,0.15)", border: "1px solid #cd7f32" }}>🥉</div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Mejor jugador por fecha */}}
       {(() => {
         const fechas = [...new Set(partidos.filter(p => p.goles_local !== null && p.goles_local !== undefined).map(p => p.fecha))];
         if (fechas.length === 0) return null;
