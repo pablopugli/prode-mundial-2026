@@ -190,7 +190,7 @@ function Login({ onLogin }) {
   );
 }
 
-function PartidoCard({ partido, pick, onPickSaved, esAdmin, onResultadoCargado }) {
+function PartidoCard({ partido, pick, onPickSaved, esAdmin, onResultadoCargado, onGrupoClick }) {
   const [gl, setGl] = useState(pick?.goles_local ?? "");
   const [gv, setGv] = useState(pick?.goles_visitante ?? "");
   const [clasificado, setClasificado] = useState(pick?.clasificado ?? null);
@@ -225,7 +225,7 @@ function PartidoCard({ partido, pick, onPickSaved, esAdmin, onResultadoCargado }
     <div className={`partido-card ${tienePick ? "con-pick" : ""}`}>
       <div className="partido-meta">
         <span className="partido-fecha">{partido.fecha} · {partido.hora}{partido.canal ? ` · 📺 ${partido.canal}` : ''}</span>
-        <span className="partido-grupo">{partido.grupo ? `Grupo ${partido.grupo}` : partido.fase}</span>
+        <span className="partido-grupo" style={partido.grupo ? { cursor: "pointer" } : {}} onClick={() => partido.grupo && onGrupoClick && onGrupoClick(partido.grupo)}>{partido.grupo ? `Grupo ${partido.grupo}` : partido.fase}</span>
       </div>
       <div className="partido-equipos">
         <span className="equipo-nombre">{partido.local}</span>
@@ -319,8 +319,17 @@ function calcPosGrupo(partidos, grupo) {
   return Object.values(equipos).sort((a, b) => b.pts - a.pts || (b.gf - b.gc) - (a.gf - a.gc) || b.gf - a.gf);
 }
 
-function TabGrupos({ partidos }) {
+function TabGrupos({ partidos, grupoInicial }) {
   const grupos = [...new Set(partidos.filter(p => p.fase === "Grupos").map(p => p.grupo))].sort();
+
+  useEffect(() => {
+    if (grupoInicial) {
+      setTimeout(() => {
+        const el = document.getElementById(`grupo-${grupoInicial}`);
+        if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+      }, 100);
+    }
+  }, [grupoInicial]);
   return (
     <div>
       <div className="section-title">GRUPOS</div>
@@ -328,7 +337,7 @@ function TabGrupos({ partidos }) {
       {grupos.map(grupo => {
         const tabla = calcPosGrupo(partidos, grupo);
         return (
-          <div key={grupo} className="admin-card" style={{ marginBottom: 16 }}>
+          <div key={grupo} id={`grupo-${grupo}`} className="admin-card" style={{ marginBottom: 16, scrollMarginTop: 80 }}>
             <div className="grupo-titulo">GRUPO {grupo}</div>
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
               <thead>
@@ -368,14 +377,53 @@ function TabGrupos({ partidos }) {
   );
 }
 
-function TabPartidos({ usuario, partidos, picks, onPickSaved }) {
+function TabPartidos({ usuario, partidos, picks, onPickSaved, onGrupoClick }) {
+  const [filtroFecha, setFiltroFecha] = useState("");
+  const [filtroGrupo, setFiltroGrupo] = useState("");
+
   if (partidos.length === 0) return <div className="loading">Cargando partidos...</div>;
+
+  const fechas = [...new Set(partidos.map(p => p.fecha))];
+  const grupos = [...new Set(partidos.filter(p => p.grupo).map(p => p.grupo))].sort();
+
+  const filtrados = partidos.filter(p => {
+    if (filtroFecha && p.fecha !== filtroFecha) return false;
+    if (filtroGrupo && p.grupo !== filtroGrupo) return false;
+    return true;
+  });
+
   return (
     <div>
       <div className="section-title">PARTIDOS</div>
-      <div className="section-sub">Cargá tus pronósticos antes del inicio de cada partido</div>
-      {partidos.map(p => (
-        <PartidoCard key={p.id} partido={p} pick={picks[p.id]} onPickSaved={onPickSaved} esAdmin={false} onResultadoCargado={() => {}} />
+      <div style={{ display: "flex", gap: 10, marginBottom: 20, flexWrap: "wrap" }}>
+        <select
+          value={filtroFecha}
+          onChange={e => setFiltroFecha(e.target.value)}
+          style={{ background: "var(--fondo3)", border: "1px solid var(--borde)", color: filtroFecha ? "var(--texto)" : "var(--texto2)", borderRadius: 8, padding: "8px 12px", fontSize: 13, fontFamily: "'DM Sans', sans-serif", cursor: "pointer", outline: "none" }}
+        >
+          <option value="">📅 Todas las fechas</option>
+          {fechas.map(f => <option key={f} value={f}>{f}</option>)}
+        </select>
+        <select
+          value={filtroGrupo}
+          onChange={e => setFiltroGrupo(e.target.value)}
+          style={{ background: "var(--fondo3)", border: "1px solid var(--borde)", color: filtroGrupo ? "var(--texto)" : "var(--texto2)", borderRadius: 8, padding: "8px 12px", fontSize: 13, fontFamily: "'DM Sans', sans-serif", cursor: "pointer", outline: "none" }}
+        >
+          <option value="">🏆 Todos los grupos</option>
+          {grupos.map(g => <option key={g} value={g}>Grupo {g}</option>)}
+        </select>
+        {(filtroFecha || filtroGrupo) && (
+          <button onClick={() => { setFiltroFecha(""); setFiltroGrupo(""); }} style={{ background: "none", border: "1px solid var(--borde)", color: "var(--texto2)", borderRadius: 8, padding: "8px 14px", fontSize: 13, fontFamily: "'DM Sans', sans-serif", cursor: "pointer" }}>
+            ✕ Limpiar filtros
+          </button>
+        )}
+        <span style={{ fontSize: 13, color: "var(--texto2)", alignSelf: "center", marginLeft: "auto" }}>
+          {filtrados.length} partido{filtrados.length !== 1 ? "s" : ""}
+        </span>
+      </div>
+      {filtrados.length === 0 && <div className="empty">No hay partidos para los filtros seleccionados</div>}
+      {filtrados.map(p => (
+        <PartidoCard key={p.id} partido={p} pick={picks[p.id]} onPickSaved={onPickSaved} esAdmin={false} onResultadoCargado={() => {}} onGrupoClick={onGrupoClick} />
       ))}
     </div>
   );
@@ -578,6 +626,8 @@ export default function App() {
     </div></div></>
   );
 
+  const [grupoSeleccionado, setGrupoSeleccionado] = useState("");
+
   const tabs = [
     { id: "partidos", label: "Partidos" },
     { id: "grupos", label: "Grupos" },
@@ -585,6 +635,11 @@ export default function App() {
     { id: "tabla", label: "Tabla" },
     ...(usuario.es_admin ? [{ id: "admin", label: "⚙️ Admin" }] : [])
   ];
+
+  const handleGrupoClick = (grupo) => {
+    setGrupoSeleccionado(grupo);
+    setTab("grupos");
+  };
 
   return (
     <><style>{css}</style>
@@ -595,8 +650,8 @@ export default function App() {
       </header>
       <nav className="nav">{tabs.map(t => <button key={t.id} className={`nav-tab ${tab === t.id ? "active" : ""}`} onClick={() => setTab(t.id)}>{t.label}</button>)}</nav>
       <main className="main">
-        {tab === "partidos" && <TabPartidos usuario={usuario} partidos={partidos} picks={picks} onPickSaved={handlePickSaved} />}
-        {tab === "grupos" && <TabGrupos partidos={partidos} />}
+        {tab === "partidos" && <TabPartidos usuario={usuario} partidos={partidos} picks={picks} onPickSaved={handlePickSaved} onGrupoClick={handleGrupoClick} />}
+        {tab === "grupos" && <TabGrupos partidos={partidos} grupoInicial={grupoSeleccionado} />}
         {tab === "llaves" && <TabLlaves partidos={partidos} />}
         {tab === "tabla" && <TabTabla usuarios={usuarios} allPicks={allPicks} partidos={partidos} />}
         {tab === "admin" && usuario.es_admin && <TabAdmin usuarios={usuarios} partidos={partidos} onAprobar={handleAprobar} onRechazar={handleRechazar} onResultadoCargado={handleResultadoCargado} />}
