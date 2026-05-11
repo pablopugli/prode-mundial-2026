@@ -1129,8 +1129,20 @@ export default function App() {
   const cargarPicks = async (uid) => { const { data } = await supabase.from("picks").select("*").eq("usuario_id", uid); if (data) { const map = {}; data.forEach(p => { map[p.partido_id] = p; }); setPicks(map); } };
   const cargarAllPicks = async () => { const { data } = await supabase.from("picks").select("*"); if (data) { const map = {}; data.forEach(p => { if (!map[p.usuario_id]) map[p.usuario_id] = {}; map[p.usuario_id][p.partido_id] = p; }); setAllPicks(map); } };
 
-  const handleLogin = (u) => {
+  const handleLogin = async (u) => {
     localStorage.setItem("prode_usuario", JSON.stringify(u));
+    // Cargar datos ANTES de setear el usuario para evitar pantalla en blanco
+    const [rPartidos, rUsuarios, rPicks, rAllPicks] = await Promise.all([
+      supabase.from("partidos").select("*").order("id"),
+      supabase.from("usuarios").select("*").order("nombre"),
+      supabase.from("picks").select("*").eq("usuario_id", u.id),
+      supabase.from("picks").select("*"),
+    ]);
+    if (rPartidos.data) setPartidos(rPartidos.data);
+    if (rUsuarios.data) setUsuarios(rUsuarios.data);
+    if (rPicks.data) { const map = {}; rPicks.data.forEach(p => { map[p.partido_id] = p; }); setPicks(map); }
+    if (rAllPicks.data) { const map = {}; rAllPicks.data.forEach(p => { if (!map[p.usuario_id]) map[p.usuario_id] = {}; map[p.usuario_id][p.partido_id] = p; }); setAllPicks(map); }
+    // Setear usuario DESPUÉS de tener los datos listos
     setUsuario(u);
   };
 
