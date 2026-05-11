@@ -624,7 +624,7 @@ function TabTabla({ usuarios, allPicks, partidos, esPublica }) {
         </div>
       )}
 
-      {/* Mejor jugador por fecha */}}
+      {/* Mejor jugador por fecha */}
       {(() => {
         const fechas = [...new Set(partidos.filter(p => p.goles_local !== null && p.goles_local !== undefined).map(p => p.fecha))];
         if (fechas.length === 0) return null;
@@ -1156,10 +1156,21 @@ export default function App() {
   const handleLogin = (u) => {
     localStorage.setItem("prode_usuario", JSON.stringify(u));
     setUsuario(u);
+    // Forzar re-render cargando datos
+    setTimeout(() => {
+      cargarPartidos();
+      cargarUsuarios();
+      cargarPicks(u.id);
+      cargarAllPicks();
+    }, 50);
   };
 
   const handleLogout = () => {
     localStorage.removeItem("prode_usuario");
+    setUsuarios([]);
+    setPartidos([]);
+    setPicks({});
+    setAllPicks({});
     setUsuario(null);
   };
 
