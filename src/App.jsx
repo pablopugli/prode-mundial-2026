@@ -177,7 +177,7 @@ function PartidoCard({ partido, pick, onPickSaved, esAdmin, onResultadoCargado }
   const [adminGl, setAdminGl] = useState(partido.goles_local ?? "");
   const [adminGv, setAdminGv] = useState(partido.goles_visitante ?? "");
   const [adminClas, setAdminClas] = useState(partido.clasificado ?? null);
-  const tienePick = gl !== "" && gv !== "";
+  const tienePick = gl !== "" && gl !== null && gv !== "" && gv !== null;
   const tieneResultado = partido.goles_local !== null && partido.goles_local !== undefined;
   const esEliminatoria = partido.fase !== "Grupos";
   const hayEmpate = tienePick && Number(gl) === Number(gv);
