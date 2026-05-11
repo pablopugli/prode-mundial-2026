@@ -261,7 +261,7 @@ function PartidoCard({ partido, pick, onPickSaved, esAdmin, onResultadoCargado }
               {saved && <span className="save-confirm">✓ Guardado</span>}
             </div>
             {(gl === "" || gv === "") && (gl !== "" || gv !== "") && (
-              <div style={{ fontSize: 12, color: "var(--oro)", marginTop: 8 }}>⚠️ Falta completar los dos goles para guardar</div>
+              <div style={{ fontSize: 12, color: "var(--oro)", marginTop: 8 }}>⚠️ Falta completar algún marcador</div>
             )}
           </>
         );
@@ -441,6 +441,97 @@ function TabAdmin({ usuarios, partidos, onAprobar, onRechazar, onResultadoCargad
   );
 }
 
+// ─── LLAVES ───────────────────────────────────────────────────────────────────
+function calcPosGrupoSimple(partidos, grupo) {
+  const ps = partidos.filter(p => p.fase === "Grupos" && p.grupo === grupo);
+  const equipos = {};
+  ps.forEach(p => {
+    if (!equipos[p.local]) equipos[p.local] = { nombre: p.local, pts: 0, dg: 0, gf: 0 };
+    if (!equipos[p.visitante]) equipos[p.visitante] = { nombre: p.visitante, pts: 0, dg: 0, gf: 0 };
+    if (p.goles_local === null || p.goles_local === undefined) return;
+    const gl = p.goles_local, gv = p.goles_visitante;
+    equipos[p.local].gf += gl; equipos[p.local].dg += gl - gv;
+    equipos[p.visitante].gf += gv; equipos[p.visitante].dg += gv - gl;
+    if (gl > gv) { equipos[p.local].pts += 3; }
+    else if (gl < gv) { equipos[p.visitante].pts += 3; }
+    else { equipos[p.local].pts++; equipos[p.visitante].pts++; }
+  });
+  return Object.values(equipos).sort((a, b) => b.pts - a.pts || b.dg - a.dg || b.gf - a.gf);
+}
+
+function LlaveSlot({ equipo, pos }) {
+  const tieneEquipo = equipo && !equipo.startsWith("1°") && !equipo.startsWith("2°");
+  return (
+    <div style={{
+      background: tieneEquipo ? "var(--fondo2)" : "var(--fondo3)",
+      border: `1px solid ${tieneEquipo ? "var(--borde)" : "var(--borde)"}`,
+      borderRadius: 6, padding: "8px 12px", fontSize: 13,
+      fontWeight: tieneEquipo ? 600 : 400,
+      color: tieneEquipo ? "var(--texto)" : "var(--texto2)",
+      minWidth: 140, textAlign: "center"
+    }}>
+      {equipo || "Por definir"}
+    </div>
+  );
+}
+
+function TabLlaves({ partidos }) {
+  const grupos = ["A","B","C","D","E","F","G","H","I","J","K","L"];
+  const primeros = {}, segundos = {};
+  grupos.forEach(g => {
+    const tabla = calcPosGrupoSimple(partidos, g);
+    const partidosGrupo = partidos.filter(p => p.fase === "Grupos" && p.grupo === g);
+    const jugados = partidosGrupo.filter(p => p.goles_local !== null && p.goles_local !== undefined).length;
+    const total = partidosGrupo.length;
+    primeros[g] = jugados === total && tabla[0] ? tabla[0].nombre : `1° Grupo ${g}`;
+    segundos[g] = jugados === total && tabla[1] ? tabla[1].nombre : `2° Grupo ${g}`;
+  });
+
+  // Cruces de 16avos según fixture oficial Mundial 2026
+  const dieciseis = [
+    { id: 1, local: primeros["A"], visitante: segundos["B"] },
+    { id: 2, local: primeros["C"], visitante: segundos["D"] },
+    { id: 3, local: primeros["E"], visitante: segundos["F"] },
+    { id: 4, local: primeros["G"], visitante: segundos["H"] },
+    { id: 5, local: primeros["I"], visitante: segundos["J"] },
+    { id: 6, local: primeros["K"], visitante: segundos["L"] },
+    { id: 7, local: primeros["B"], visitante: segundos["A"] },
+    { id: 8, local: primeros["D"], visitante: segundos["C"] },
+    { id: 9, local: primeros["F"], visitante: segundos["E"] },
+    { id: 10, local: primeros["H"], visitante: segundos["G"] },
+    { id: 11, local: primeros["J"], visitante: segundos["I"] },
+    { id: 12, local: primeros["L"], visitante: segundos["K"] },
+  ];
+
+  const cruce = (local, visitante, label) => (
+    <div style={{ display: "flex", flexDirection: "column", gap: 4, alignItems: "center" }}>
+      {label && <div style={{ fontSize: 10, color: "var(--texto2)", textTransform: "uppercase", letterSpacing: 1, marginBottom: 2 }}>{label}</div>}
+      <LlaveSlot equipo={local} />
+      <div style={{ fontSize: 11, color: "var(--texto2)" }}>vs</div>
+      <LlaveSlot equipo={visitante} />
+    </div>
+  );
+
+  return (
+    <div>
+      <div className="section-title">LLAVES</div>
+      <div className="section-sub">Los cruces se completan automáticamente al terminar la fase de grupos</div>
+      <div className="fase-label">16avos de Final</div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: 16 }}>
+        {dieciseis.map(c => (
+          <div key={c.id} className="admin-card" style={{ padding: 16 }}>
+            {cruce(c.local, c.visitante, `Partido ${c.id}`)}
+          </div>
+        ))}
+      </div>
+      <div className="fase-label" style={{ marginTop: 24 }}>Octavos, Cuartos, Semis y Final</div>
+      <div className="admin-card" style={{ textAlign: "center", color: "var(--texto2)", fontSize: 14, padding: 32 }}>
+        Se completarán a medida que avance el torneo
+      </div>
+    </div>
+  );
+}
+
 export default function App() {
   const [usuario, setUsuario] = useState(() => {
     try { const u = localStorage.getItem("prode_usuario"); return u ? JSON.parse(u) : null; } catch { return null; }
@@ -490,6 +581,7 @@ export default function App() {
   const tabs = [
     { id: "partidos", label: "Partidos" },
     { id: "grupos", label: "Grupos" },
+    { id: "llaves", label: "Llaves" },
     { id: "tabla", label: "Tabla" },
     ...(usuario.es_admin ? [{ id: "admin", label: "⚙️ Admin" }] : [])
   ];
@@ -505,6 +597,7 @@ export default function App() {
       <main className="main">
         {tab === "partidos" && <TabPartidos usuario={usuario} partidos={partidos} picks={picks} onPickSaved={handlePickSaved} />}
         {tab === "grupos" && <TabGrupos partidos={partidos} />}
+        {tab === "llaves" && <TabLlaves partidos={partidos} />}
         {tab === "tabla" && <TabTabla usuarios={usuarios} allPicks={allPicks} partidos={partidos} />}
         {tab === "admin" && usuario.es_admin && <TabAdmin usuarios={usuarios} partidos={partidos} onAprobar={handleAprobar} onRechazar={handleRechazar} onResultadoCargado={handleResultadoCargado} />}
       </main>
