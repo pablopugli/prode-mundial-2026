@@ -242,7 +242,7 @@ function PartidoCard({ partido, pick, onPickSaved, esAdmin, onResultadoCargado }
               <button className={`clas-btn ${adminClas === partido.visitante ? "active" : ""}`} onClick={() => setAdminClas(partido.visitante)}>{partido.visitante}</button>
             </div>
           )}
-          <button className="btn-cargar-res" onClick={() => { if (adminGl === "" || adminGv === "") return; onResultadoCargado(partido.id, { goles_local: Number(adminGl), goles_visitante: Number(adminGv), clasificado: adminClas }); }}>CARGAR</button>
+          <button className="btn-cargar-res" onClick={() => { if (adminGl === "" || adminGl === null || adminGv === "" || adminGv === null) return; onResultadoCargado(partido.id, { goles_local: Number(adminGl), goles_visitante: Number(adminGv), clasificado: adminClas }); }}>CARGAR</button>
         </div>
       )}
     </div>
