@@ -51,7 +51,7 @@ const css = `
   .fase-label { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: var(--texto2); margin-bottom: 12px; margin-top: 28px; padding-bottom: 8px; border-bottom: 1px solid var(--borde); }
   .partido-card { background: var(--fondo2); border: 1px solid var(--borde); border-radius: 12px; padding: 20px 24px; margin-bottom: 12px; }
   .partido-card.con-pick { border-left: 3px solid var(--verde); }
-  .partido-meta { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
+  .partido-meta { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; flex-wrap: wrap; gap: 6px; }
   .partido-fecha { font-size: 12px; color: var(--texto2); }
   .partido-grupo { font-size: 11px; background: var(--fondo3); border: 1px solid var(--borde); padding: 3px 10px; border-radius: 20px; color: var(--texto2); }
   .partido-equipos { display: flex; align-items: center; gap: 16px; }
@@ -104,6 +104,9 @@ const css = `
   .pendiente-title { font-family: 'Bebas Neue', cursive; font-size: 28px; color: var(--oro); letter-spacing: 2px; margin-bottom: 12px; }
   .pendiente-text { color: var(--texto2); font-size: 15px; line-height: 1.6; }
   .admin-btns { display: flex; align-items: center; gap: 8px; }
+  .grupo-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .grupo-equipo { background: var(--fondo3); border: 1px solid var(--borde); border-radius: 8px; padding: 10px 14px; font-size: 14px; font-weight: 500; }
+  .grupo-titulo { font-family: 'Bebas Neue', cursive; font-size: 20px; color: var(--verde); letter-spacing: 2px; margin-bottom: 12px; }
   @media (max-width: 600px) { .main { padding: 24px 16px; } .login-card { padding: 36px 24px; } .equipo-nombre { font-size: 14px; } }
 `;
 
@@ -242,27 +245,51 @@ function PartidoCard({ partido, pick, onPickSaved, esAdmin, onResultadoCargado }
               <button className={`clas-btn ${adminClas === partido.visitante ? "active" : ""}`} onClick={() => setAdminClas(partido.visitante)}>{partido.visitante}</button>
             </div>
           )}
-          <button className="btn-cargar-res" onClick={() => { if (adminGl === "" || adminGl === null || adminGv === "" || adminGv === null) return; onResultadoCargado(partido.id, { goles_local: Number(adminGl), goles_visitante: Number(adminGv), clasificado: adminClas }); }}>CARGAR</button>
+          <button className="btn-cargar-res" onClick={() => {
+            if (adminGl === "" || adminGl === null || adminGv === "" || adminGv === null) return;
+            onResultadoCargado(partido.id, { goles_local: Number(adminGl), goles_visitante: Number(adminGv), clasificado: adminClas });
+          }}>CARGAR</button>
         </div>
       )}
     </div>
   );
 }
 
+function TabGrupos({ partidos }) {
+  const grupos = [...new Set(partidos.filter(p => p.fase === "Grupos").map(p => p.grupo))].sort();
+  return (
+    <div>
+      <div className="section-title">GRUPOS</div>
+      <div className="section-sub">Fase de grupos · 12 grupos · 48 equipos</div>
+      {grupos.map(grupo => {
+        const equipos = [];
+        partidos.filter(p => p.grupo === grupo).forEach(p => {
+          if (!equipos.includes(p.local)) equipos.push(p.local);
+          if (!equipos.includes(p.visitante)) equipos.push(p.visitante);
+        });
+        return (
+          <div key={grupo} className="admin-card" style={{ marginBottom: 12 }}>
+            <div className="grupo-titulo">GRUPO {grupo}</div>
+            <div className="grupo-grid">
+              {equipos.map(e => (
+                <div key={e} className="grupo-equipo">{e}</div>
+              ))}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 function TabPartidos({ usuario, partidos, picks, onPickSaved }) {
-  const fases = [...new Set(partidos.map(p => p.fase))];
   if (partidos.length === 0) return <div className="loading">Cargando partidos...</div>;
   return (
     <div>
       <div className="section-title">PARTIDOS</div>
       <div className="section-sub">Cargá tus pronósticos antes del inicio de cada partido</div>
-      {fases.map(fase => (
-        <div key={fase}>
-          <div className="fase-label">{fase}</div>
-          {partidos.filter(p => p.fase === fase).map(p => (
-            <PartidoCard key={p.id} partido={p} pick={picks[p.id]} onPickSaved={onPickSaved} esAdmin={false} onResultadoCargado={() => {}} />
-          ))}
-        </div>
+      {partidos.map(p => (
+        <PartidoCard key={p.id} partido={p} pick={picks[p.id]} onPickSaved={onPickSaved} esAdmin={false} onResultadoCargado={() => {}} />
       ))}
     </div>
   );
@@ -362,7 +389,12 @@ export default function App() {
     </div></div></>
   );
 
-  const tabs = [{ id: "partidos", label: "Partidos" }, { id: "grupos", label: "Grupos" }, { id: "tabla", label: "Tabla" }, ...(usuario.es_admin ? [{ id: "admin", label: "⚙️ Admin" }] : [])];
+  const tabs = [
+    { id: "partidos", label: "Partidos" },
+    { id: "grupos", label: "Grupos" },
+    { id: "tabla", label: "Tabla" },
+    ...(usuario.es_admin ? [{ id: "admin", label: "⚙️ Admin" }] : [])
+  ];
 
   return (
     <><style>{css}</style>
@@ -373,34 +405,8 @@ export default function App() {
       </header>
       <nav className="nav">{tabs.map(t => <button key={t.id} className={`nav-tab ${tab === t.id ? "active" : ""}`} onClick={() => setTab(t.id)}>{t.label}</button>)}</nav>
       <main className="main">
-        function TabGrupos({ partidos }) {
-  const grupos = [...new Set(partidos.filter(p => p.fase === "Grupos").map(p => p.grupo))].sort();
-  return (
-    <div>
-      <div className="section-title">GRUPOS</div>
-      <div className="section-sub">Fase de grupos · 12 grupos · 48 equipos</div>
-      {grupos.map(grupo => {
-        const equipos = [];
-        partidos.filter(p => p.grupo === grupo).forEach(p => {
-          if (!equipos.includes(p.local)) equipos.push(p.local);
-          if (!equipos.includes(p.visitante)) equipos.push(p.visitante);
-        });
-        return (
-          <div key={grupo} className="admin-card" style={{ marginBottom: 12 }}>
-            <div style={{ fontFamily: "'Bebas Neue', cursive", fontSize: 20, color: "var(--verde)", letterSpacing: 2, marginBottom: 12 }}>GRUPO {grupo}</div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-              {equipos.map(e => (
-                <div key={e} style={{ background: "var(--fondo3)", border: "1px solid var(--borde)", borderRadius: 8, padding: "10px 14px", fontSize: 14, fontWeight: 500 }}>{e}</div>
-              ))}
-            </div>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-        {tab === "partidos" && <TabPartidos usuario={usuario} partidos={partidos} picks={picks} onPickSaved={handlePickSaved} 
-         {tab === "grupos" && <TabGrupos partidos={partidos} />}                        
+        {tab === "partidos" && <TabPartidos usuario={usuario} partidos={partidos} picks={picks} onPickSaved={handlePickSaved} />}
+        {tab === "grupos" && <TabGrupos partidos={partidos} />}
         {tab === "tabla" && <TabTabla usuarios={usuarios} allPicks={allPicks} partidos={partidos} />}
         {tab === "admin" && usuario.es_admin && <TabAdmin usuarios={usuarios} partidos={partidos} onAprobar={handleAprobar} onRechazar={handleRechazar} onResultadoCargado={handleResultadoCargado} />}
       </main>
