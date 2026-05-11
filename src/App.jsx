@@ -1,6 +1,22 @@
 import { useState, useEffect } from "react";
 import { supabase } from "./supabase.js";
 
+function parseFechaPartido(fecha, hora) {
+  const [dia, mes, anio] = fecha.split("/");
+  const [hh, mm] = hora.split(":");
+  return new Date(Date.UTC(Number(anio), Number(mes) - 1, Number(dia), Number(hh) + 3, Number(mm)));
+}
+
+function estadoPartido(partido) {
+  const ahora = new Date();
+  const inicio = parseFechaPartido(partido.fecha, partido.hora);
+  const diff = inicio - ahora;
+  if (diff <= 0) return "cerrado";
+  if (diff <= 15 * 60 * 1000) return "pronto";
+  if (diff <= 60 * 60 * 1000) return "hoy";
+  return "abierto";
+}
+
 function calcularPuntos(pick, partido) {
   if (!pick || partido.goles_local === null || partido.goles_local === undefined) return null;
   let puntos = 0;
@@ -107,6 +123,9 @@ const css = `
   .grupo-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
   .grupo-equipo { background: var(--fondo3); border: 1px solid var(--borde); border-radius: 8px; padding: 10px 14px; font-size: 14px; font-weight: 500; }
   .grupo-titulo { font-family: 'Bebas Neue', cursive; font-size: 20px; color: var(--verde); letter-spacing: 2px; margin-bottom: 12px; }
+  .aviso-pronto { background: rgba(255,59,59,0.1); border: 1px solid var(--rojo); border-radius: 8px; padding: 8px 12px; font-size: 12px; color: var(--rojo); margin-top: 10px; }
+  .aviso-hoy { background: rgba(245,197,24,0.1); border: 1px solid var(--oro); border-radius: 8px; padding: 8px 12px; font-size: 12px; color: var(--oro); margin-top: 10px; }
+  .pick-cerrado { margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--borde); font-size: 12px; color: var(--texto2); }
   @media (max-width: 600px) { .main { padding: 24px 16px; } .login-card { padding: 36px 24px; } .equipo-nombre { font-size: 14px; } }
 `;
 
@@ -220,18 +239,30 @@ function PartidoCard({ partido, pick, onPickSaved, esAdmin, onResultadoCargado }
           {pts !== null && <span className={`puntos-badge ${pts === 0 ? "cero" : ""}`}>{pts} pts</span>}
         </div>
       )}
-      {!esAdmin && (
-        <div className="pick-row">
-          <span className="pick-label">Tu pronóstico</span>
-          <div className="score-inputs">
-            <input className="score-input" type="number" min="0" max="20" value={gl} onChange={e => setGl(e.target.value)} placeholder="0" />
-            <span className="score-sep">-</span>
-            <input className="score-input" type="number" min="0" max="20" value={gv} onChange={e => setGv(e.target.value)} placeholder="0" />
+      {!esAdmin && (() => {
+        const estado = estadoPartido(partido);
+        if (estado === "cerrado") return (
+          <div className="pick-cerrado">
+            🔒 Pronósticos cerrados · {tienePick ? `Tu pick: ${gl} - ${gv}` : "No cargaste pronóstico"}
           </div>
-          <button className="btn-guardar" onClick={guardarPick} disabled={saving}>{saving ? "..." : "GUARDAR"}</button>
-          {saved && <span className="save-confirm">✓ Guardado</span>}
-        </div>
-      )}
+        );
+        return (
+          <>
+            {estado === "pronto" && <div className="aviso-pronto">⚠️ ¡Cierra en menos de 15 minutos!</div>}
+            {estado === "hoy" && <div className="aviso-hoy">⏰ El partido empieza en menos de 1 hora</div>}
+            <div className="pick-row">
+              <span className="pick-label">Tu pronóstico</span>
+              <div className="score-inputs">
+                <input className="score-input" type="number" min="0" max="20" value={gl} onChange={e => setGl(e.target.value)} placeholder="0" />
+                <span className="score-sep">-</span>
+                <input className="score-input" type="number" min="0" max="20" value={gv} onChange={e => setGv(e.target.value)} placeholder="0" />
+              </div>
+              <button className="btn-guardar" onClick={guardarPick} disabled={saving}>{saving ? "..." : "GUARDAR"}</button>
+              {saved && <span className="save-confirm">✓ Guardado</span>}
+            </div>
+          </>
+        );
+      })()}
       {!esAdmin && esEliminatoria && hayEmpate && (
         <div className="clasificado-row">
           <span className="clasificado-label">¿Quién clasifica?</span>
@@ -408,7 +439,9 @@ function TabAdmin({ usuarios, partidos, onAprobar, onRechazar, onResultadoCargad
 }
 
 export default function App() {
-  const [usuario, setUsuario] = useState(null);
+  const [usuario, setUsuario] = useState(() => {
+    try { const u = localStorage.getItem("prode_usuario"); return u ? JSON.parse(u) : null; } catch { return null; }
+  });
   const [usuarios, setUsuarios] = useState([]);
   const [partidos, setPartidos] = useState([]);
   const [picks, setPicks] = useState({});
@@ -422,6 +455,16 @@ export default function App() {
 
   useEffect(() => { if (usuario) { cargarPartidos(); cargarUsuarios(); cargarPicks(usuario.id); cargarAllPicks(); } }, [usuario]);
 
+  const handleLogin = (u) => {
+    localStorage.setItem("prode_usuario", JSON.stringify(u));
+    setUsuario(u);
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem("prode_usuario");
+    setUsuario(null);
+  };
+
   const handlePickSaved = async (partidoId, pickData) => {
     const { data } = await supabase.from("picks").upsert([{ usuario_id: usuario.id, partido_id: partidoId, ...pickData }], { onConflict: "usuario_id,partido_id" }).select().single();
     if (data) { setPicks(prev => ({ ...prev, [partidoId]: data })); setAllPicks(prev => ({ ...prev, [usuario.id]: { ...(prev[usuario.id] || {}), [partidoId]: data } })); }
@@ -430,14 +473,14 @@ export default function App() {
   const handleRechazar = async (uid) => { await supabase.from("usuarios").delete().eq("id", uid); cargarUsuarios(); };
   const handleResultadoCargado = async (partidoId, resultado) => { await supabase.from("partidos").update(resultado).eq("id", partidoId); cargarPartidos(); };
 
-  if (!usuario) return (<><style>{css}</style><Login onLogin={setUsuario} /></>);
+  if (!usuario) return (<><style>{css}</style><Login onLogin={handleLogin} /></>);
   if (!usuario.aprobado) return (
     <><style>{css}</style>
     <div className="pendiente-wrap"><div className="pendiente-card">
       <div className="pendiente-icon">⏳</div>
       <div className="pendiente-title">CUENTA PENDIENTE</div>
       <div className="pendiente-text">Tu registro está siendo revisado. Te avisarán cuando tu cuenta esté aprobada.</div>
-      <button className="btn-logout" style={{ marginTop: 24 }} onClick={() => setUsuario(null)}>Volver</button>
+      <button className="btn-logout" style={{ marginTop: 24 }} onClick={handleLogout}>Volver</button>
     </div></div></>
   );
 
@@ -453,7 +496,7 @@ export default function App() {
     <div className="app">
       <header className="header">
         <div className="header-logo">PRODE <span>MUNDIAL</span></div>
-        <div className="header-right"><span className="header-name">{usuario.nombre}</span><button className="btn-logout" onClick={() => setUsuario(null)}>Salir</button></div>
+        <div className="header-right"><span className="header-name">{usuario.nombre}</span><button className="btn-logout" onClick={handleLogout}>Salir</button></div>
       </header>
       <nav className="nav">{tabs.map(t => <button key={t.id} className={`nav-tab ${tab === t.id ? "active" : ""}`} onClick={() => setTab(t.id)}>{t.label}</button>)}</nav>
       <main className="main">
