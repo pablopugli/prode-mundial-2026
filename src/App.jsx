@@ -483,6 +483,23 @@ function TabPartidos({ usuario, partidos, picks, onPickSaved, onGrupoClick, allP
   );
 }
 
+
+function calcRacha(uid, partidos, allPicks) {
+  const jugados = partidos
+    .filter(p => p.goles_local !== null && p.goles_local !== undefined)
+    .sort((a, b) => b.id - a.id);
+  let racha = 0;
+  for (const p of jugados) {
+    const pick = allPicks[uid]?.[p.id];
+    if (!pick) break;
+    const res1x2 = p.goles_local > p.goles_visitante ? "L" : p.goles_local < p.goles_visitante ? "V" : "E";
+    const pk1x2 = pick.goles_local > pick.goles_visitante ? "L" : pick.goles_local < pick.goles_visitante ? "V" : "E";
+    if (pk1x2 === res1x2) racha++;
+    else break;
+  }
+  return racha;
+}
+
 function calcStats(uid, partidos, allPicks) {
   let pts = 0, exactos = 0, unox2 = 0, bonus = 0;
   partidos.forEach(p => {
@@ -501,7 +518,7 @@ function calcStats(uid, partidos, allPicks) {
 
 function TabTabla({ usuarios, allPicks, partidos, esPublica }) {
   const aprobados = usuarios.filter(u => u.aprobado && !u.es_admin);
-  const tabla = aprobados.map(u => ({ ...u, ...calcStats(u.id, partidos, allPicks) })).sort((a, b) => b.pts - a.pts);
+  const tabla = aprobados.map(u => ({ ...u, ...calcStats(u.id, partidos, allPicks), racha: calcRacha(u.id, partidos, allPicks) })).sort((a, b) => b.pts - a.pts);
   if (tabla.length === 0) return <div className="empty">No hay participantes aprobados aún</div>;
 
   const compartirWhatsApp = () => {
@@ -559,6 +576,7 @@ function TabTabla({ usuarios, allPicks, partidos, esPublica }) {
               <th style={{ textAlign: "center" }}>🎯 Exactos</th>
               <th style={{ textAlign: "center" }}>✓ 1X2</th>
               <th style={{ textAlign: "center" }}>⭐ Bonus</th>
+              <th style={{ textAlign: "center" }}>🔥 Racha</th>
             </tr>
           </thead>
           <tbody>{tabla.map((u, i) => (
@@ -569,6 +587,7 @@ function TabTabla({ usuarios, allPicks, partidos, esPublica }) {
               <td style={{ textAlign: "center", color: "var(--verde)", fontFamily: "'Bebas Neue', cursive", fontSize: 18 }}>{u.exactos}</td>
               <td style={{ textAlign: "center", color: "var(--texto2)", fontFamily: "'Bebas Neue', cursive", fontSize: 18 }}>{u.unox2}</td>
               <td style={{ textAlign: "center", color: "var(--oro)", fontFamily: "'Bebas Neue', cursive", fontSize: 18 }}>{u.bonus}</td>
+              <td style={{ textAlign: "center", color: u.racha > 2 ? "var(--rojo)" : "var(--texto2)", fontFamily: "'Bebas Neue', cursive", fontSize: 18 }}>{u.racha > 0 ? u.racha + "✓" : "-"}</td>
             </tr>
           ))}</tbody>
         </table>
@@ -796,6 +815,42 @@ function TabCuenta({ usuario, onPasswordChanged, partidos, allPicks }) {
         );
       })()}
 
+      {/* Historial partido por partido */}
+      {(() => {
+        const jugados = (partidos || []).filter(p => p.goles_local !== null && p.goles_local !== undefined).sort((a,b) => b.id - a.id);
+        if (jugados.length === 0) return null;
+        return (
+          <div style={{ marginBottom: 20 }}>
+            <div className="fase-label" style={{ marginTop: 0, marginBottom: 12 }}>Mi historial</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {jugados.map(p => {
+                const pick = (allPicks || {})[usuario.id]?.[p.id];
+                const pts = pick ? calcularPuntos(pick, p) : null;
+                const tieneExacto = pts !== null && pts >= 3;
+                const tiene1x2 = pts !== null && pts >= 1 && !tieneExacto;
+                const fallo = pts === 0;
+                const sinPick = pts === null;
+                let color = "var(--texto2)";
+                let icon = "—";
+                if (tieneExacto) { color = "var(--verde)"; icon = "🎯"; }
+                else if (tiene1x2) { color = "var(--oro)"; icon = "✓"; }
+                else if (fallo) { color = "var(--rojo)"; icon = "✗"; }
+                return (
+                  <div key={p.id} style={{ display: "flex", alignItems: "center", gap: 10, background: "var(--fondo2)", border: "1px solid var(--borde)", borderLeft: `3px solid ${color}`, borderRadius: 8, padding: "8px 12px" }}>
+                    <span style={{ fontSize: 18, flexShrink: 0 }}>{icon}</span>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 13, fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{p.local} vs {p.visitante}</div>
+                      <div style={{ fontSize: 11, color: "var(--texto2)" }}>{p.fecha} · Res: {p.goles_local}-{p.goles_visitante}{pick ? ` · Pick: ${pick.goles_local}-${pick.goles_visitante}` : " · Sin pick"}</div>
+                    </div>
+                    {pts !== null && <span style={{ fontFamily: "'Bebas Neue', cursive", fontSize: 18, color, flexShrink: 0 }}>{pts}pts</span>}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })()}
+
       <div className="admin-card" style={{ maxWidth: 420 }}>
         <div style={{ marginBottom: 20 }}>
           <div style={{ fontSize: 12, color: "var(--texto2)", marginBottom: 4 }}>Nombre</div>
@@ -945,6 +1000,25 @@ function TabPicksGlobales({ partidos, allPicks, usuarios }) {
                   <Barra valor={empate} total={jugaron} color="var(--texto2)" label="Empate" />
                   <Barra valor={visitante} total={jugaron} color="var(--rojo)" label={p.visitante} />
                 </div>
+                {(() => {
+                  // Score más elegido
+                  const scores = {};
+                  aprobados.forEach(u => {
+                    const pk = allPicks[u.id]?.[p.id];
+                    if (!pk || pk.goles_local === null || pk.goles_local === undefined) return;
+                    const key = `${pk.goles_local}-${pk.goles_visitante}`;
+                    scores[key] = (scores[key] || 0) + 1;
+                  });
+                  const top = Object.entries(scores).sort((a,b) => b[1]-a[1])[0];
+                  if (!top) return null;
+                  const esAcertado = p.goles_local !== null && `${p.goles_local}-${p.goles_visitante}` === top[0];
+                  return (
+                    <div style={{ fontSize: 12, color: "var(--texto2)", marginBottom: 6 }}>
+                      Score más elegido: <span style={{ fontFamily: "'Bebas Neue', cursive", fontSize: 16, color: esAcertado ? "var(--verde)" : "var(--texto)", marginLeft: 4 }}>{top[0].replace("-"," - ")}</span>
+                      <span style={{ marginLeft: 6, color: "var(--texto2)" }}>({top[1]} picks{esAcertado ? " ✓" : ""})</span>
+                    </div>
+                  );
+                })()}
                 <div style={{ fontSize: 11, color: "var(--texto2)" }}>{jugaron} de {total} participantes cargaron pick</div>
               </>
             )}
