@@ -373,6 +373,32 @@ export default function App() {
       </header>
       <nav className="nav">{tabs.map(t => <button key={t.id} className={`nav-tab ${tab === t.id ? "active" : ""}`} onClick={() => setTab(t.id)}>{t.label}</button>)}</nav>
       <main className="main">
+        function TabGrupos({ partidos }) {
+  const grupos = [...new Set(partidos.filter(p => p.fase === "Grupos").map(p => p.grupo))].sort();
+  return (
+    <div>
+      <div className="section-title">GRUPOS</div>
+      <div className="section-sub">Fase de grupos · 12 grupos · 48 equipos</div>
+      {grupos.map(grupo => {
+        const equipos = [];
+        partidos.filter(p => p.grupo === grupo).forEach(p => {
+          if (!equipos.includes(p.local)) equipos.push(p.local);
+          if (!equipos.includes(p.visitante)) equipos.push(p.visitante);
+        });
+        return (
+          <div key={grupo} className="admin-card" style={{ marginBottom: 12 }}>
+            <div style={{ fontFamily: "'Bebas Neue', cursive", fontSize: 20, color: "var(--verde)", letterSpacing: 2, marginBottom: 12 }}>GRUPO {grupo}</div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+              {equipos.map(e => (
+                <div key={e} style={{ background: "var(--fondo3)", border: "1px solid var(--borde)", borderRadius: 8, padding: "10px 14px", fontSize: 14, fontWeight: 500 }}>{e}</div>
+              ))}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
         {tab === "partidos" && <TabPartidos usuario={usuario} partidos={partidos} picks={picks} onPickSaved={handlePickSaved} 
          {tab === "grupos" && <TabGrupos partidos={partidos} />}                        
         {tab === "tabla" && <TabTabla usuarios={usuarios} allPicks={allPicks} partidos={partidos} />}
