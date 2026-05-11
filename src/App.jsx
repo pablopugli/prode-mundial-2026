@@ -522,6 +522,33 @@ function TabTabla({ usuarios, allPicks, partidos, esPublica }) {
         )}
       </div>
       <div className="section-sub">Actualizada en tiempo real con cada resultado</div>
+
+      {/* Mejor jugador por fecha */}
+      {(() => {
+        const fechas = [...new Set(partidos.filter(p => p.goles_local !== null && p.goles_local !== undefined).map(p => p.fecha))];
+        if (fechas.length === 0) return null;
+        const ultimaFecha = fechas[fechas.length - 1];
+        const partidosFecha = partidos.filter(p => p.fecha === ultimaFecha && p.goles_local !== null);
+        const statsXfecha = aprobados.map(u => {
+          let pts = 0;
+          partidosFecha.forEach(p => {
+            pts += calcularPuntos(allPicks[u.id]?.[p.id], p) || 0;
+          });
+          return { nombre: u.nombre, pts };
+        }).sort((a, b) => b.pts - a.pts);
+        const lider = statsXfecha[0];
+        if (!lider || lider.pts === 0) return null;
+        return (
+          <div style={{ background: "rgba(245,197,24,0.08)", border: "1px solid var(--oro)", borderRadius: 10, padding: "12px 16px", marginBottom: 20, display: "flex", alignItems: "center", gap: 12 }}>
+            <span style={{ fontSize: 24 }}>⭐</span>
+            <div>
+              <div style={{ fontSize: 11, color: "var(--oro)", textTransform: "uppercase", letterSpacing: 1, marginBottom: 2 }}>Mejor del {ultimaFecha}</div>
+              <div style={{ fontSize: 16, fontWeight: 700 }}>{lider.nombre} <span style={{ color: "var(--oro)", fontFamily: "'Bebas Neue', cursive", fontSize: 20 }}>{lider.pts} pts</span></div>
+            </div>
+          </div>
+        );
+      })()}
+
       <div className="tabla-wrap">
         <table className="tabla">
           <thead>
@@ -713,7 +740,7 @@ function TabLlaves({ partidos }) {
   );
 }
 
-function TabCuenta({ usuario, onPasswordChanged }) {
+function TabCuenta({ usuario, onPasswordChanged, partidos, allPicks }) {
   const [passActual, setPassActual] = useState("");
   const [passNueva, setPassNueva] = useState("");
   const [passConfirm, setPassConfirm] = useState("");
@@ -739,6 +766,36 @@ function TabCuenta({ usuario, onPasswordChanged }) {
   return (
     <div>
       <div className="section-title">MI CUENTA</div>
+
+      {/* Estadísticas personales */}
+      {(() => {
+        const s = calcStats(usuario.id, partidos || [], allPicks || {});
+        const jugados = (partidos || []).filter(p => p.goles_local !== null && p.goles_local !== undefined).length;
+        const picksJugados = (partidos || []).filter(p => {
+          const pick = (allPicks || {})[usuario.id]?.[p.id];
+          return pick && p.goles_local !== null && p.goles_local !== undefined;
+        }).length;
+        const pctExactos = picksJugados > 0 ? Math.round((s.exactos / picksJugados) * 100) : 0;
+        const pct1x2 = picksJugados > 0 ? Math.round((s.unox2 / picksJugados) * 100) : 0;
+        return (
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(110px, 1fr))", gap: 10, marginBottom: 20 }}>
+            {[
+              { label: "Puntos", valor: s.pts, color: "var(--verde)" },
+              { label: "Exactos", valor: s.exactos, color: "var(--verde)" },
+              { label: "% Exactos", valor: pctExactos + "%", color: "var(--texto)" },
+              { label: "% 1X2", valor: pct1x2 + "%", color: "var(--texto)" },
+              { label: "Picks jugados", valor: picksJugados + "/" + jugados, color: "var(--texto2)" },
+              { label: "Bonus", valor: s.bonus, color: "var(--oro)" },
+            ].map(({ label, valor, color }) => (
+              <div key={label} className="admin-card" style={{ padding: "12px 14px", textAlign: "center" }}>
+                <div style={{ fontFamily: "'Bebas Neue', cursive", fontSize: 24, color }}>{valor}</div>
+                <div style={{ fontSize: 11, color: "var(--texto2)", marginTop: 2 }}>{label}</div>
+              </div>
+            ))}
+          </div>
+        );
+      })()}
+
       <div className="admin-card" style={{ maxWidth: 420 }}>
         <div style={{ marginBottom: 20 }}>
           <div style={{ fontSize: 12, color: "var(--texto2)", marginBottom: 4 }}>Nombre</div>
@@ -1021,7 +1078,7 @@ export default function App() {
         {tab === "picks" && <TabPicksGlobales partidos={partidos} allPicks={allPicks} usuarios={usuarios} />}
         {tab === "tabla" && <TabTabla usuarios={usuarios} allPicks={allPicks} partidos={partidos} esPublica={false} />}
         {tab === "reglas" && <TabComoFunciona />}
-        {tab === "cuenta" && <TabCuenta usuario={usuario} onPasswordChanged={(u) => { localStorage.setItem("prode_usuario", JSON.stringify(u)); setUsuario(u); }} />}
+        {tab === "cuenta" && <TabCuenta usuario={usuario} onPasswordChanged={(u) => { localStorage.setItem("prode_usuario", JSON.stringify(u)); setUsuario(u); }} partidos={partidos} allPicks={allPicks} />}
         {tab === "admin" && usuario.es_admin && <TabAdmin usuarios={usuarios} partidos={partidos} onAprobar={handleAprobar} onRechazar={handleRechazar} onResultadoCargado={handleResultadoCargado} onResetPassword={handleResetPassword} />}
       </main>
     </div></>
