@@ -138,6 +138,12 @@ const css = `
   .aviso-hoy { background: rgba(245,197,24,0.1); border: 1px solid var(--oro); border-radius: 8px; padding: 8px 12px; font-size: 12px; color: var(--oro); margin-top: 10px; }
   .pick-cerrado { margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--borde); font-size: 12px; color: var(--texto2); }
   @media (max-width: 600px) { .main { padding: 24px 16px; } .login-card { padding: 36px 24px; } .equipo-nombre { font-size: 14px; } }
+  .alerta-cierre { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); z-index: 999; background: var(--rojo); color: #fff; border-radius: 12px; padding: 14px 20px; display: flex; align-items: center; gap: 12px; box-shadow: 0 4px 20px rgba(255,59,59,0.4); animation: slideUp 0.3s ease-out; max-width: 90vw; }
+  @keyframes slideUp { from { opacity: 0; transform: translateX(-50%) translateY(20px); } to { opacity: 1; transform: translateX(-50%) translateY(0); } }
+  .alerta-cierre-texto { flex: 1; }
+  .alerta-cierre-titulo { font-weight: 700; font-size: 14px; margin-bottom: 2px; }
+  .alerta-cierre-sub { font-size: 12px; opacity: 0.85; }
+  .alerta-cerrar { background: rgba(255,255,255,0.2); border: none; color: #fff; width: 24px; height: 24px; border-radius: 50%; cursor: pointer; font-size: 14px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
 `;
 
 function Login({ onLogin }) {
@@ -1164,6 +1170,43 @@ function TabPicksGlobales({ partidos, allPicks, usuarios }) {
   );
 }
 
+
+function AlertaCierre({ partidos, picks }) {
+  const [descartados, setDescartados] = useState([]);
+  const [tick, setTick] = useState(0);
+
+  useEffect(() => {
+    const id = setInterval(() => setTick(t => t + 1), 30000); // revisar cada 30s
+    return () => clearInterval(id);
+  }, []);
+
+  const proximos = partidos.filter(p => {
+    if (descartados.includes(p.id)) return false;
+    const pick = picks[p.id];
+    if (pick && pick.goles_local !== null && pick.goles_local !== undefined) return false;
+    const inicio = parseFechaPartido(p.fecha, p.hora);
+    const diff = inicio - new Date();
+    return diff > 0 && diff <= 60 * 60 * 1000; // próxima 1 hora
+  });
+
+  if (proximos.length === 0) return null;
+  const p = proximos[0];
+  const inicio = parseFechaPartido(p.fecha, p.hora);
+  const diff = inicio - new Date();
+  const min = Math.floor(diff / 60000);
+
+  return (
+    <div className="alerta-cierre">
+      <span style={{ fontSize: 24 }}>⚠️</span>
+      <div className="alerta-cierre-texto">
+        <div className="alerta-cierre-titulo">¡Cerrando en {min} min!</div>
+        <div className="alerta-cierre-sub">{p.local} vs {p.visitante} · Cargá tu pronóstico</div>
+      </div>
+      <button className="alerta-cerrar" onClick={() => setDescartados(d => [...d, p.id])}>✕</button>
+    </div>
+  );
+}
+
 export default function App() {
   const esPublica = new URLSearchParams(window.location.search).get("public") === "1";
   const [usuario, setUsuario] = useState(() => {
@@ -1301,6 +1344,7 @@ export default function App() {
         {tab === "cuenta" && <TabCuenta usuario={usuario} onPasswordChanged={(u) => { localStorage.setItem("prode_usuario", JSON.stringify(u)); setUsuario(u); }} partidos={partidos} allPicks={allPicks} />}
         {tab === "admin" && usuario.es_admin && <TabAdmin usuarios={usuarios} partidos={partidos} onAprobar={handleAprobar} onRechazar={handleRechazar} onResultadoCargado={handleResultadoCargado} onResetPassword={handleResetPassword} />}
       </main>
+      <AlertaCierre partidos={partidos} picks={picks} />
     </div></>
   );
 }
