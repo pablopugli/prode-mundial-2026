@@ -180,6 +180,7 @@ function PartidoCard({ partido, pick, onPickSaved, esAdmin, onResultadoCargado }
   const [adminGl, setAdminGl] = useState(partido.goles_local ?? "");
   const [adminGv, setAdminGv] = useState(partido.goles_visitante ?? "");
   const [adminClas, setAdminClas] = useState(partido.clasificado ?? null);
+  const [editando, setEditando] = useState(false);
   const tienePick = gl !== "" && gl !== null && gv !== "" && gv !== null;
   const tieneResultado = partido.goles_local !== null && partido.goles_local !== undefined;
   const esEliminatoria = partido.fase !== "Grupos";
@@ -191,7 +192,14 @@ function PartidoCard({ partido, pick, onPickSaved, esAdmin, onResultadoCargado }
     setSaving(true);
     await onPickSaved(partido.id, { goles_local: Number(gl), goles_visitante: Number(gv), clasificado });
     setSaving(false); setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
+  };
+
+  const cargarResultado = async () => {
+    const glVal = document.getElementById(`rgl-${partido.id}`)?.value;
+    const gvVal = document.getElementById(`rgv-${partido.id}`)?.value;
+    if (glVal === "" || glVal === undefined || gvVal === "" || gvVal === undefined) return;
+    await onResultadoCargado(partido.id, { goles_local: Number(glVal), goles_visitante: Number(gvVal), clasificado: adminClas });
+    setEditando(false);
   };
 
   return (
@@ -233,7 +241,13 @@ function PartidoCard({ partido, pick, onPickSaved, esAdmin, onResultadoCargado }
           </div>
         </div>
       )}
-      {esAdmin && (
+      {esAdmin && tieneResultado && !editando && (
+        <div className="resultado-inputs">
+          <span style={{ fontSize: 12, color: "var(--verde)" }}>✓ Cargado: {partido.goles_local} - {partido.goles_visitante}</span>
+          <button style={{ background: "none", border: "1px solid var(--borde)", color: "var(--texto2)", borderRadius: 6, padding: "6px 14px", cursor: "pointer", fontSize: 12, fontFamily: "'DM Sans', sans-serif" }} onClick={() => setEditando(true)}>Editar</button>
+        </div>
+      )}
+      {esAdmin && (!tieneResultado || editando) && (
         <div className="resultado-inputs">
           <span style={{ fontSize: 12, color: "var(--texto2)" }}>Resultado:</span>
           <input id={`rgl-${partido.id}`} className="resultado-input" type="number" min="0" placeholder="0" defaultValue={adminGl} onChange={e => setAdminGl(e.target.value)} />
@@ -245,16 +259,30 @@ function PartidoCard({ partido, pick, onPickSaved, esAdmin, onResultadoCargado }
               <button className={`clas-btn ${adminClas === partido.visitante ? "active" : ""}`} onClick={() => setAdminClas(partido.visitante)}>{partido.visitante}</button>
             </div>
           )}
-          <button className="btn-cargar-res" onClick={() => {
-            const gl = document.getElementById(`rgl-${partido.id}`)?.value;
-            const gv = document.getElementById(`rgv-${partido.id}`)?.value;
-            if (gl === "" || gl === undefined || gv === "" || gv === undefined) return;
-            onResultadoCargado(partido.id, { goles_local: Number(gl), goles_visitante: Number(gv), clasificado: adminClas });
-          }}>CARGAR</button>
+          <button className="btn-cargar-res" onClick={cargarResultado}>CARGAR</button>
+          {editando && <button style={{ background: "none", border: "1px solid var(--borde)", color: "var(--texto2)", borderRadius: 6, padding: "9px 14px", cursor: "pointer", fontSize: 12, fontFamily: "'DM Sans', sans-serif" }} onClick={() => setEditando(false)}>Cancelar</button>}
         </div>
       )}
     </div>
   );
+}
+
+function calcPosGrupo(partidos, grupo) {
+  const ps = partidos.filter(p => p.fase === "Grupos" && p.grupo === grupo);
+  const equipos = {};
+  ps.forEach(p => {
+    if (!equipos[p.local]) equipos[p.local] = { nombre: p.local, pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 };
+    if (!equipos[p.visitante]) equipos[p.visitante] = { nombre: p.visitante, pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 };
+    if (p.goles_local === null || p.goles_local === undefined) return;
+    const gl = p.goles_local, gv = p.goles_visitante;
+    equipos[p.local].pj++; equipos[p.visitante].pj++;
+    equipos[p.local].gf += gl; equipos[p.local].gc += gv;
+    equipos[p.visitante].gf += gv; equipos[p.visitante].gc += gl;
+    if (gl > gv) { equipos[p.local].g++; equipos[p.local].pts += 3; equipos[p.visitante].p++; }
+    else if (gl < gv) { equipos[p.visitante].g++; equipos[p.visitante].pts += 3; equipos[p.local].p++; }
+    else { equipos[p.local].e++; equipos[p.local].pts++; equipos[p.visitante].e++; equipos[p.visitante].pts++; }
+  });
+  return Object.values(equipos).sort((a, b) => b.pts - a.pts || (b.gf - b.gc) - (a.gf - a.gc) || b.gf - a.gf);
 }
 
 function TabGrupos({ partidos }) {
@@ -262,21 +290,43 @@ function TabGrupos({ partidos }) {
   return (
     <div>
       <div className="section-title">GRUPOS</div>
-      <div className="section-sub">Fase de grupos · 12 grupos · 48 equipos</div>
+      <div className="section-sub">Posiciones actualizadas con cada resultado cargado</div>
       {grupos.map(grupo => {
-        const equipos = [];
-        partidos.filter(p => p.grupo === grupo).forEach(p => {
-          if (!equipos.includes(p.local)) equipos.push(p.local);
-          if (!equipos.includes(p.visitante)) equipos.push(p.visitante);
-        });
+        const tabla = calcPosGrupo(partidos, grupo);
         return (
-          <div key={grupo} className="admin-card" style={{ marginBottom: 12 }}>
+          <div key={grupo} className="admin-card" style={{ marginBottom: 16 }}>
             <div className="grupo-titulo">GRUPO {grupo}</div>
-            <div className="grupo-grid">
-              {equipos.map(e => (
-                <div key={e} className="grupo-equipo">{e}</div>
-              ))}
-            </div>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+              <thead>
+                <tr style={{ borderBottom: "1px solid var(--borde)" }}>
+                  <th style={{ textAlign: "left", padding: "6px 8px", color: "var(--texto2)", fontWeight: 600, fontSize: 11, textTransform: "uppercase" }}>Equipo</th>
+                  <th style={{ textAlign: "center", padding: "6px 8px", color: "var(--texto2)", fontWeight: 600, fontSize: 11 }}>PJ</th>
+                  <th style={{ textAlign: "center", padding: "6px 8px", color: "var(--texto2)", fontWeight: 600, fontSize: 11 }}>G</th>
+                  <th style={{ textAlign: "center", padding: "6px 8px", color: "var(--texto2)", fontWeight: 600, fontSize: 11 }}>E</th>
+                  <th style={{ textAlign: "center", padding: "6px 8px", color: "var(--texto2)", fontWeight: 600, fontSize: 11 }}>P</th>
+                  <th style={{ textAlign: "center", padding: "6px 8px", color: "var(--texto2)", fontWeight: 600, fontSize: 11 }}>DG</th>
+                  <th style={{ textAlign: "center", padding: "6px 8px", color: "var(--oro)", fontWeight: 700, fontSize: 13 }}>Pts</th>
+                </tr>
+              </thead>
+              <tbody>
+                {tabla.map((eq, i) => (
+                  <tr key={eq.nombre} style={{ borderBottom: "1px solid var(--borde)", background: i < 2 ? "rgba(0,196,106,0.05)" : "transparent" }}>
+                    <td style={{ padding: "8px 8px", fontWeight: i < 2 ? 600 : 400, display: "flex", alignItems: "center", gap: 6 }}>
+                      {i < 2 && <span style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--verde)", display: "inline-block", flexShrink: 0 }}></span>}
+                      {i >= 2 && <span style={{ width: 6, height: 6, display: "inline-block", flexShrink: 0 }}></span>}
+                      {eq.nombre}
+                    </td>
+                    <td style={{ textAlign: "center", padding: "8px 8px", color: "var(--texto2)" }}>{eq.pj}</td>
+                    <td style={{ textAlign: "center", padding: "8px 8px", color: "var(--texto2)" }}>{eq.g}</td>
+                    <td style={{ textAlign: "center", padding: "8px 8px", color: "var(--texto2)" }}>{eq.e}</td>
+                    <td style={{ textAlign: "center", padding: "8px 8px", color: "var(--texto2)" }}>{eq.p}</td>
+                    <td style={{ textAlign: "center", padding: "8px 8px", color: "var(--texto2)" }}>{eq.gf - eq.gc > 0 ? "+" : ""}{eq.gf - eq.gc}</td>
+                    <td style={{ textAlign: "center", padding: "8px 8px", fontFamily: "'Bebas Neue', cursive", fontSize: 18, color: "var(--verde)" }}>{eq.pts}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <div style={{ fontSize: 11, color: "var(--texto2)", marginTop: 8 }}>🟢 Clasifican a 16avos</div>
           </div>
         );
       })}
