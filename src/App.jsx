@@ -764,6 +764,140 @@ function TabCuenta({ usuario, onPasswordChanged }) {
   );
 }
 
+function TabComoFunciona() {
+  const reglas = [
+    { pts: "1 punto", desc: "Acertás el resultado 1X2 (local gana, empate, visitante gana)" },
+    { pts: "3 puntos", desc: "Acertás el marcador exacto (incluye el 1X2)" },
+    { pts: "+1 punto", desc: "En eliminatorias: acertás quién clasifica cuando hay empate en 90 min" },
+  ];
+  return (
+    <div>
+      <div className="section-title">CÓMO FUNCIONA</div>
+      <div className="section-sub">Todo lo que necesitás saber para jugar</div>
+
+      <div className="admin-card" style={{ marginBottom: 16 }}>
+        <div className="grupo-titulo" style={{ marginBottom: 16 }}>Sistema de puntuación</div>
+        {reglas.map(({ pts, desc }) => (
+          <div key={pts} style={{ display: "flex", gap: 14, alignItems: "flex-start", marginBottom: 14 }}>
+            <div style={{ background: "var(--verde)", color: "#000", fontFamily: "'Bebas Neue', cursive", fontSize: 16, padding: "4px 10px", borderRadius: 6, flexShrink: 0, letterSpacing: 1 }}>{pts}</div>
+            <div style={{ fontSize: 14, color: "var(--texto)", lineHeight: 1.5, paddingTop: 4 }}>{desc}</div>
+          </div>
+        ))}
+      </div>
+
+      <div className="admin-card" style={{ marginBottom: 16 }}>
+        <div className="grupo-titulo" style={{ marginBottom: 12 }}>Ejemplos</div>
+        {[
+          { partido: "Argentina 2 - 1 Francia", pick: "Pronosticás 2-1 →", resultado: "3 puntos (exacto)" },
+          { partido: "Argentina 2 - 1 Francia", pick: "Pronosticás 1-0 →", resultado: "1 punto (1X2 correcto)" },
+          { partido: "Argentina 2 - 1 Francia", pick: "Pronosticás 0-1 →", resultado: "0 puntos" },
+        ].map(({ partido, pick, resultado }) => (
+          <div key={pick} style={{ marginBottom: 12, padding: "10px 14px", background: "var(--fondo3)", borderRadius: 8 }}>
+            <div style={{ fontSize: 13, color: "var(--texto2)", marginBottom: 4 }}>{partido}</div>
+            <div style={{ fontSize: 14 }}>{pick} <span style={{ color: "var(--verde)", fontWeight: 600 }}>{resultado}</span></div>
+          </div>
+        ))}
+      </div>
+
+      <div className="admin-card" style={{ marginBottom: 16 }}>
+        <div className="grupo-titulo" style={{ marginBottom: 12 }}>Reglas importantes</div>
+        {[
+          "Los pronósticos se cierran 15 minutos antes de que arranque cada partido.",
+          "Se puntúa el resultado de los 90 minutos. El alargue y los penales no cuentan para el marcador.",
+          "En eliminatorias, si pronosticás empate en 90 min, tenés que elegir quién clasifica para sumar el punto bonus.",
+          "Podés modificar tu pronóstico hasta que cierre el partido.",
+          "Los picks de todos se revelan una vez que el partido cierra.",
+        ].map((regla, i) => (
+          <div key={i} style={{ display: "flex", gap: 10, marginBottom: 10, fontSize: 14, lineHeight: 1.5 }}>
+            <span style={{ color: "var(--verde)", flexShrink: 0, fontWeight: 700 }}>→</span>
+            <span>{regla}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function TabPicksGlobales({ partidos, allPicks, usuarios }) {
+  const aprobados = usuarios.filter(u => u.aprobado && !u.es_admin);
+  const total = aprobados.length;
+  const [filtroFecha, setFiltroFecha] = useState("");
+  const fechas = [...new Set(partidos.map(p => p.fecha))];
+  const partidosFiltrados = filtroFecha ? partidos.filter(p => p.fecha === filtroFecha) : partidos;
+
+  const getStats = (partido) => {
+    let local = 0, empate = 0, visitante = 0, sinPick = 0;
+    aprobados.forEach(u => {
+      const pick = allPicks[u.id]?.[partido.id];
+      if (!pick || pick.goles_local === null || pick.goles_local === undefined) { sinPick++; return; }
+      const gl = pick.goles_local, gv = pick.goles_visitante;
+      if (gl > gv) local++;
+      else if (gl < gv) visitante++;
+      else empate++;
+    });
+    const jugaron = total - sinPick;
+    return { local, empate, visitante, sinPick, jugaron };
+  };
+
+  const Barra = ({ valor, total, color, label }) => {
+    const pct = total > 0 ? Math.round((valor / total) * 100) : 0;
+    return (
+      <div style={{ flex: 1, textAlign: "center" }}>
+        <div style={{ fontSize: 11, color: "var(--texto2)", marginBottom: 4 }}>{label}</div>
+        <div style={{ height: 6, background: "var(--fondo3)", borderRadius: 3, overflow: "hidden", marginBottom: 4 }}>
+          <div style={{ height: "100%", width: `${pct}%`, background: color, borderRadius: 3, transition: "width 0.3s" }} />
+        </div>
+        <div style={{ fontFamily: "'Bebas Neue', cursive", fontSize: 18, color }}>{pct}%</div>
+        <div style={{ fontSize: 11, color: "var(--texto2)" }}>{valor} picks</div>
+      </div>
+    );
+  };
+
+  return (
+    <div>
+      <div className="section-title">PICKS GLOBALES</div>
+      <div style={{ display: "flex", gap: 10, marginBottom: 20, flexWrap: "wrap" }}>
+        <select value={filtroFecha} onChange={e => setFiltroFecha(e.target.value)}
+          style={{ background: "var(--fondo3)", border: "1px solid var(--borde)", color: "var(--texto)", borderRadius: 8, padding: "8px 12px", fontSize: 13, fontFamily: "'DM Sans', sans-serif", cursor: "pointer", outline: "none" }}>
+          <option value="">📅 Todas las fechas</option>
+          {fechas.map(f => <option key={f} value={f}>{f}</option>)}
+        </select>
+      </div>
+      {partidosFiltrados.map(p => {
+        const { local, empate, visitante, sinPick, jugaron } = getStats(p);
+        const cerrado = estadoPartido(p) === "cerrado";
+        return (
+          <div key={p.id} className="admin-card" style={{ marginBottom: 12 }}>
+            <div className="partido-meta">
+              <span className="partido-fecha">{p.fecha} · {p.hora}</span>
+              <span className="partido-grupo">{p.grupo ? `Grupo ${p.grupo}` : p.fase}</span>
+            </div>
+            <div className="partido-equipos" style={{ marginBottom: 14 }}>
+              <span className="equipo-nombre">{p.local}</span>
+              <span className="vs">VS</span>
+              <span className="equipo-nombre visitante">{p.visitante}</span>
+            </div>
+            {!cerrado ? (
+              <div style={{ fontSize: 13, color: "var(--texto2)", fontStyle: "italic" }}>
+                🔒 Los picks se revelan cuando cierre el partido · {jugaron}/{total} cargados
+              </div>
+            ) : (
+              <>
+                <div style={{ display: "flex", gap: 12, marginBottom: 8 }}>
+                  <Barra valor={local} total={jugaron} color="var(--verde)" label={p.local} />
+                  <Barra valor={empate} total={jugaron} color="var(--texto2)" label="Empate" />
+                  <Barra valor={visitante} total={jugaron} color="var(--rojo)" label={p.visitante} />
+                </div>
+                <div style={{ fontSize: 11, color: "var(--texto2)" }}>{jugaron} de {total} participantes cargaron pick</div>
+              </>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 export default function App() {
   const esPublica = new URLSearchParams(window.location.search).get("public") === "1";
   const [usuario, setUsuario] = useState(() => {
@@ -853,7 +987,9 @@ export default function App() {
     { id: "partidos", label: "Partidos", badge: pendientes > 0 ? pendientes : null },
     { id: "grupos", label: "Grupos" },
     { id: "llaves", label: "Llaves" },
+    { id: "picks", label: "Picks" },
     { id: "tabla", label: "Tabla" },
+    { id: "reglas", label: "Reglas" },
     { id: "cuenta", label: "Mi cuenta" },
     ...(usuario.es_admin ? [{ id: "admin", label: "⚙️ Admin" }] : [])
   ];
@@ -882,7 +1018,9 @@ export default function App() {
         {tab === "partidos" && <TabPartidos usuario={usuario} partidos={partidos} picks={picks} onPickSaved={handlePickSaved} onGrupoClick={handleGrupoClick} allPicks={allPicks} usuarios={usuarios} />}
         {tab === "grupos" && <TabGrupos partidos={partidos} grupoInicial={grupoSeleccionado} />}
         {tab === "llaves" && <TabLlaves partidos={partidos} />}
+        {tab === "picks" && <TabPicksGlobales partidos={partidos} allPicks={allPicks} usuarios={usuarios} />}
         {tab === "tabla" && <TabTabla usuarios={usuarios} allPicks={allPicks} partidos={partidos} esPublica={false} />}
+        {tab === "reglas" && <TabComoFunciona />}
         {tab === "cuenta" && <TabCuenta usuario={usuario} onPasswordChanged={(u) => { localStorage.setItem("prode_usuario", JSON.stringify(u)); setUsuario(u); }} />}
         {tab === "admin" && usuario.es_admin && <TabAdmin usuarios={usuarios} partidos={partidos} onAprobar={handleAprobar} onRechazar={handleRechazar} onResultadoCargado={handleResultadoCargado} onResetPassword={handleResetPassword} />}
       </main>
