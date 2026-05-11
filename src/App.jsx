@@ -483,31 +483,44 @@ function TabPartidos({ usuario, partidos, picks, onPickSaved, onGrupoClick, allP
   );
 }
 
-function TabTabla({ usuarios, allPicks, partidos }) {
+function calcStats(uid, partidos, allPicks) {
+  let pts = 0, exactos = 0, unox2 = 0, bonus = 0;
+  partidos.forEach(p => {
+    const pick = allPicks[uid]?.[p.id];
+    if (!pick || p.goles_local === null || p.goles_local === undefined) return;
+    const resL = p.goles_local, resV = p.goles_visitante;
+    const pkL = pick.goles_local, pkV = pick.goles_visitante;
+    const res1x2 = resL > resV ? "L" : resL < resV ? "V" : "E";
+    const pk1x2 = pkL > pkV ? "L" : pkL < pkV ? "V" : "E";
+    if (pk1x2 === res1x2) { pts += 1; unox2++; }
+    if (pkL === resL && pkV === resV) { pts += 2; exactos++; }
+    if (p.fase !== "Grupos" && pick.clasificado && p.clasificado && pick.clasificado === p.clasificado) { pts += 1; bonus++; }
+  });
+  return { pts, exactos, unox2, bonus };
+}
+
+function TabTabla({ usuarios, allPicks, partidos, esPublica }) {
   const aprobados = usuarios.filter(u => u.aprobado && !u.es_admin);
-
-  const calcStats = (uid) => {
-    let pts = 0, exactos = 0, unox2 = 0, bonus = 0;
-    partidos.forEach(p => {
-      const pick = allPicks[uid]?.[p.id];
-      if (!pick || p.goles_local === null || p.goles_local === undefined) return;
-      const resL = p.goles_local, resV = p.goles_visitante;
-      const pkL = pick.goles_local, pkV = pick.goles_visitante;
-      const res1x2 = resL > resV ? "L" : resL < resV ? "V" : "E";
-      const pk1x2 = pkL > pkV ? "L" : pkL < pkV ? "V" : "E";
-      if (pk1x2 === res1x2) { pts += 1; unox2++; }
-      if (pkL === resL && pkV === resV) { pts += 2; exactos++; }
-      if (p.fase !== "Grupos" && pick.clasificado && p.clasificado && pick.clasificado === p.clasificado) { pts += 1; bonus++; }
-    });
-    return { pts, exactos, unox2, bonus };
-  };
-
-  const tabla = aprobados.map(u => ({ ...u, ...calcStats(u.id) })).sort((a, b) => b.pts - a.pts);
+  const tabla = aprobados.map(u => ({ ...u, ...calcStats(u.id, partidos, allPicks) })).sort((a, b) => b.pts - a.pts);
   if (tabla.length === 0) return <div className="empty">No hay participantes aprobados aún</div>;
+
+  const compartirWhatsApp = () => {
+    const medalla = ["🥇","🥈","🥉"];
+    const lineas = tabla.map((u, i) => `${medalla[i] || `${i+1}.`} ${u.nombre} — ${u.pts} pts (🎯${u.exactos} ✓${u.unox2})`);
+    const texto = `🏆 *PRODE MUNDIAL 2026*\n\n${lineas.join("\n")}\n\n_Jugá en: ${window.location.origin}?public=1_`;
+    window.open(`https://wa.me/?text=${encodeURIComponent(texto)}`, "_blank");
+  };
 
   return (
     <div>
-      <div className="section-title">TABLA DE POSICIONES</div>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8, flexWrap: "wrap", gap: 10 }}>
+        <div className="section-title" style={{ marginBottom: 0 }}>TABLA DE POSICIONES</div>
+        {!esPublica && (
+          <button onClick={compartirWhatsApp} style={{ background: "#25D366", color: "#fff", border: "none", borderRadius: 8, padding: "8px 16px", fontFamily: "'DM Sans', sans-serif", fontSize: 13, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", gap: 6 }}>
+            📲 Compartir
+          </button>
+        )}
+      </div>
       <div className="section-sub">Actualizada en tiempo real con cada resultado</div>
       <div className="tabla-wrap">
         <table className="tabla">
@@ -752,6 +765,7 @@ function TabCuenta({ usuario, onPasswordChanged }) {
 }
 
 export default function App() {
+  const esPublica = new URLSearchParams(window.location.search).get("public") === "1";
   const [usuario, setUsuario] = useState(() => {
     try { const u = localStorage.getItem("prode_usuario"); return u ? JSON.parse(u) : null; } catch { return null; }
   });
@@ -766,7 +780,29 @@ export default function App() {
   const cargarPicks = async (uid) => { const { data } = await supabase.from("picks").select("*").eq("usuario_id", uid); if (data) { const map = {}; data.forEach(p => { map[p.partido_id] = p; }); setPicks(map); } };
   const cargarAllPicks = async () => { const { data } = await supabase.from("picks").select("*"); if (data) { const map = {}; data.forEach(p => { if (!map[p.usuario_id]) map[p.usuario_id] = {}; map[p.usuario_id][p.partido_id] = p; }); setAllPicks(map); } };
 
-  useEffect(() => { if (usuario) { cargarPartidos(); cargarUsuarios(); cargarPicks(usuario.id); cargarAllPicks(); } }, [usuario]);
+  useEffect(() => {
+    if (esPublica) { cargarUsuarios(); cargarPartidos(); cargarAllPicks(); }
+    else if (usuario) { cargarPartidos(); cargarUsuarios(); cargarPicks(usuario.id); cargarAllPicks(); }
+  }, [usuario, esPublica]);
+
+  // Vista pública — solo muestra la tabla sin login
+  if (esPublica) return (
+    <><style>{css}</style>
+    <div className="app">
+      <header className="header">
+        <div className="header-logo">PRODE <span>MUNDIAL</span></div>
+        <div style={{ fontSize: 13, color: "var(--texto2)" }}>Vista pública</div>
+      </header>
+      <main className="main">
+        {usuarios.length > 0
+          ? <TabTabla usuarios={usuarios} allPicks={allPicks} partidos={partidos} esPublica={true} />
+          : <div className="loading">Cargando...</div>}
+        <div style={{ textAlign: "center", marginTop: 24 }}>
+          <a href="/" style={{ color: "var(--verde)", fontSize: 14, textDecoration: "none" }}>→ Ingresar al prode</a>
+        </div>
+      </main>
+    </div></>
+  );
 
   const handleLogin = (u) => {
     localStorage.setItem("prode_usuario", JSON.stringify(u));
@@ -846,7 +882,7 @@ export default function App() {
         {tab === "partidos" && <TabPartidos usuario={usuario} partidos={partidos} picks={picks} onPickSaved={handlePickSaved} onGrupoClick={handleGrupoClick} allPicks={allPicks} usuarios={usuarios} />}
         {tab === "grupos" && <TabGrupos partidos={partidos} grupoInicial={grupoSeleccionado} />}
         {tab === "llaves" && <TabLlaves partidos={partidos} />}
-        {tab === "tabla" && <TabTabla usuarios={usuarios} allPicks={allPicks} partidos={partidos} />}
+        {tab === "tabla" && <TabTabla usuarios={usuarios} allPicks={allPicks} partidos={partidos} esPublica={false} />}
         {tab === "cuenta" && <TabCuenta usuario={usuario} onPasswordChanged={(u) => { localStorage.setItem("prode_usuario", JSON.stringify(u)); setUsuario(u); }} />}
         {tab === "admin" && usuario.es_admin && <TabAdmin usuarios={usuarios} partidos={partidos} onAprobar={handleAprobar} onRechazar={handleRechazar} onResultadoCargado={handleResultadoCargado} onResetPassword={handleResetPassword} />}
       </main>
