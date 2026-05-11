@@ -1123,30 +1123,11 @@ export default function App() {
   const [picks, setPicks] = useState({});
   const [allPicks, setAllPicks] = useState({});
   const [tab, setTab] = useState("partidos");
-  const [cargando, setCargando] = useState(false);
-
-  const cargarTodo = async (uid) => {
-    setCargando(true);
-    await Promise.all([
-      supabase.from("partidos").select("*").order("id").then(({ data }) => { if (data) setPartidos(data); }),
-      supabase.from("usuarios").select("*").order("nombre").then(({ data }) => { if (data) setUsuarios(data); }),
-      supabase.from("picks").select("*").eq("usuario_id", uid).then(({ data }) => { if (data) { const map = {}; data.forEach(p => { map[p.partido_id] = p; }); setPicks(map); } }),
-      supabase.from("picks").select("*").then(({ data }) => { if (data) { const map = {}; data.forEach(p => { if (!map[p.usuario_id]) map[p.usuario_id] = {}; map[p.usuario_id][p.partido_id] = p; }); setAllPicks(map); } }),
-    ]);
-    setCargando(false);
-  };
 
   const cargarPartidos = async () => { const { data } = await supabase.from("partidos").select("*").order("id"); if (data) setPartidos(data); };
   const cargarUsuarios = async () => { const { data } = await supabase.from("usuarios").select("*").order("nombre"); if (data) setUsuarios(data); };
-
-  useEffect(() => {
-    if (esPublica) {
-      cargarPartidos(); cargarUsuarios();
-      supabase.from("picks").select("*").then(({ data }) => { if (data) { const map = {}; data.forEach(p => { if (!map[p.usuario_id]) map[p.usuario_id] = {}; map[p.usuario_id][p.partido_id] = p; }); setAllPicks(map); }});
-    } else if (usuario?.id) {
-      cargarTodo(usuario.id);
-    }
-  }, [usuario?.id, esPublica]);
+  const cargarPicks = async (uid) => { const { data } = await supabase.from("picks").select("*").eq("usuario_id", uid); if (data) { const map = {}; data.forEach(p => { map[p.partido_id] = p; }); setPicks(map); } };
+  const cargarAllPicks = async () => { const { data } = await supabase.from("picks").select("*"); if (data) { const map = {}; data.forEach(p => { if (!map[p.usuario_id]) map[p.usuario_id] = {}; map[p.usuario_id][p.partido_id] = p; }); setAllPicks(map); } };
 
   const handleLogin = (u) => {
     localStorage.setItem("prode_usuario", JSON.stringify(u));
@@ -1157,6 +1138,11 @@ export default function App() {
     localStorage.removeItem("prode_usuario");
     setUsuario(null);
   };
+
+  useEffect(() => {
+    if (esPublica) { cargarUsuarios(); cargarPartidos(); cargarAllPicks(); }
+    else if (usuario?.id) { cargarPartidos(); cargarUsuarios(); cargarPicks(usuario.id); cargarAllPicks(); }
+  }, [usuario?.id, esPublica]);
 
   // Vista pública — solo muestra la tabla sin login
   if (esPublica) return (
@@ -1177,8 +1163,6 @@ export default function App() {
     </div></>
   );
 
-
-
   const handlePickSaved = async (partidoId, pickData) => {
     const { data } = await supabase.from("picks").upsert([{ usuario_id: usuario.id, partido_id: partidoId, ...pickData }], { onConflict: "usuario_id,partido_id" }).select().single();
     if (data) { setPicks(prev => ({ ...prev, [partidoId]: data })); setAllPicks(prev => ({ ...prev, [usuario.id]: { ...(prev[usuario.id] || {}), [partidoId]: data } })); }
@@ -1193,13 +1177,6 @@ export default function App() {
   };
 
   if (!usuario) return (<><style>{css}</style><Login onLogin={handleLogin} /></>);
-  if (cargando) return (
-    <><style>{css}</style>
-    <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "var(--fondo)", flexDirection: "column", gap: 16 }}>
-      <div style={{ fontFamily: "'Bebas Neue', cursive", fontSize: 32, color: "var(--verde)", letterSpacing: 3 }}>PRODE <span style={{ color: "var(--oro)" }}>MUNDIAL</span></div>
-      <div style={{ fontSize: 14, color: "var(--texto2)" }}>Cargando...</div>
-    </div></>
-  );
   if (!usuario.aprobado) return (
     <><style>{css}</style>
     <div className="pendiente-wrap"><div className="pendiente-card">
