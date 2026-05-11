@@ -1124,33 +1124,14 @@ export default function App() {
   const [allPicks, setAllPicks] = useState({});
   const [tab, setTab] = useState("partidos");
 
-  const [cargando, setCargando] = useState(false);
-
-  const cargarTodo = async (uid) => {
-    setCargando(true);
-    const [rPartidos, rUsuarios, rPicks, rAllPicks] = await Promise.all([
-      supabase.from("partidos").select("*").order("id"),
-      supabase.from("usuarios").select("*").order("nombre"),
-      supabase.from("picks").select("*").eq("usuario_id", uid),
-      supabase.from("picks").select("*"),
-    ]);
-    if (rPartidos.data) setPartidos(rPartidos.data);
-    if (rUsuarios.data) setUsuarios(rUsuarios.data);
-    if (rPicks.data) { const map = {}; rPicks.data.forEach(p => { map[p.partido_id] = p; }); setPicks(map); }
-    if (rAllPicks.data) { const map = {}; rAllPicks.data.forEach(p => { if (!map[p.usuario_id]) map[p.usuario_id] = {}; map[p.usuario_id][p.partido_id] = p; }); setAllPicks(map); }
-    setCargando(false);
-  };
-
   const cargarPartidos = async () => { const { data } = await supabase.from("partidos").select("*").order("id"); if (data) setPartidos(data); };
   const cargarUsuarios = async () => { const { data } = await supabase.from("usuarios").select("*").order("nombre"); if (data) setUsuarios(data); };
+  const cargarPicks = async (uid) => { const { data } = await supabase.from("picks").select("*").eq("usuario_id", uid); if (data) { const map = {}; data.forEach(p => { map[p.partido_id] = p; }); setPicks(map); } };
+  const cargarAllPicks = async () => { const { data } = await supabase.from("picks").select("*"); if (data) { const map = {}; data.forEach(p => { if (!map[p.usuario_id]) map[p.usuario_id] = {}; map[p.usuario_id][p.partido_id] = p; }); setAllPicks(map); } };
 
   useEffect(() => {
-    if (esPublica) {
-      cargarPartidos(); cargarUsuarios();
-      supabase.from("picks").select("*").then(({ data }) => { if (data) { const map = {}; data.forEach(p => { if (!map[p.usuario_id]) map[p.usuario_id] = {}; map[p.usuario_id][p.partido_id] = p; }); setAllPicks(map); }});
-    } else if (usuario) {
-      cargarTodo(usuario.id);
-    }
+    if (esPublica) { cargarUsuarios(); cargarPartidos(); cargarAllPicks(); }
+    else if (usuario?.id) { cargarPartidos(); cargarUsuarios(); cargarPicks(usuario.id); cargarAllPicks(); }
   }, [usuario?.id, esPublica]);
 
   // Vista pública — solo muestra la tabla sin login
@@ -1179,10 +1160,6 @@ export default function App() {
 
   const handleLogout = () => {
     localStorage.removeItem("prode_usuario");
-    setUsuarios([]);
-    setPartidos([]);
-    setPicks({});
-    setAllPicks({});
     setUsuario(null);
   };
 
@@ -1200,7 +1177,6 @@ export default function App() {
   };
 
   if (!usuario) return (<><style>{css}</style><Login onLogin={handleLogin} /></>);
-  if (cargando) return (<><style>{css}</style><div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "var(--fondo)" }}><div style={{ fontFamily: "'Bebas Neue', cursive", fontSize: 28, color: "var(--verde)", letterSpacing: 3 }}>CARGANDO...</div></div></>);
   if (!usuario.aprobado) return (
     <><style>{css}</style>
     <div className="pendiente-wrap"><div className="pendiente-card">
