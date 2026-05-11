@@ -1123,6 +1123,7 @@ export default function App() {
   const [picks, setPicks] = useState({});
   const [allPicks, setAllPicks] = useState({});
   const [tab, setTab] = useState("partidos");
+  const [grupoSeleccionado, setGrupoSeleccionado] = useState("");
 
   const cargarPartidos = async () => { const { data } = await supabase.from("partidos").select("*").order("id"); if (data) setPartidos(data); };
   const cargarUsuarios = async () => { const { data } = await supabase.from("usuarios").select("*").order("nombre"); if (data) setUsuarios(data); };
@@ -1198,8 +1199,6 @@ export default function App() {
       <button className="btn-logout" style={{ marginTop: 24 }} onClick={handleLogout}>Volver</button>
     </div></div></>
   );
-
-  const [grupoSeleccionado, setGrupoSeleccionado] = useState("");
 
   // Badge: partidos que cierran en las próximas 24hs y no tienen pick
   const pendientes = partidos.filter(p => {
