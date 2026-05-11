@@ -233,7 +233,7 @@ function useContador(partido) {
   return tiempo;
 }
 
-function PartidoCard({ partido, pick, onPickSaved, esAdmin, onResultadoCargado, onGrupoClick, allPicks, usuarios }) {
+function PartidoCard({ partido, pick, onPickSaved, onPickDeleted, esAdmin, onResultadoCargado, onGrupoClick, allPicks, usuarios }) {
   const [gl, setGl] = useState(pick?.goles_local ?? "");
   const [gv, setGv] = useState(pick?.goles_visitante ?? "");
   const [clasificado, setClasificado] = useState(pick?.clasificado ?? null);
@@ -255,6 +255,12 @@ function PartidoCard({ partido, pick, onPickSaved, esAdmin, onResultadoCargado, 
     setSaving(true);
     await onPickSaved(partido.id, { goles_local: Number(gl), goles_visitante: Number(gv), clasificado });
     setSaving(false); setSaved(true);
+  };
+
+  const borrarPick = async () => {
+    if (!onPickDeleted) return;
+    setGl(""); setGv(""); setClasificado(null);
+    await onPickDeleted(partido.id);
   };
 
   const cargarResultado = async () => {
@@ -305,6 +311,9 @@ function PartidoCard({ partido, pick, onPickSaved, esAdmin, onResultadoCargado, 
                 <input className="score-input" type="number" min="0" max="20" value={gv} onChange={e => setGv(e.target.value)} placeholder="0" />
               </div>
               <button className="btn-guardar" onClick={guardarPick} disabled={saving}>{saving ? "..." : "GUARDAR"}</button>
+              {pick && pick.goles_local !== null && pick.goles_local !== undefined && !saved && (
+                <button onClick={borrarPick} style={{ background: "none", border: "1px solid var(--borde)", color: "var(--texto2)", borderRadius: 8, padding: "9px 14px", fontSize: 12, fontFamily: "'DM Sans', sans-serif", cursor: "pointer" }}>🗑 Borrar</button>
+              )}
               {saved && <span className="save-confirm">✓ Guardado</span>}
             </div>
             {(gl === "" || gv === "") && (gl !== "" || gv !== "") && (
@@ -449,7 +458,7 @@ function TabGrupos({ partidos, grupoInicial }) {
   );
 }
 
-function TabPartidos({ usuario, partidos, picks, onPickSaved, onGrupoClick, allPicks, usuarios }) {
+function TabPartidos({ usuario, partidos, picks, onPickSaved, onPickDeleted, onGrupoClick, allPicks, usuarios }) {
   const [filtroFecha, setFiltroFecha] = useState("");
   const [filtroGrupo, setFiltroGrupo] = useState("");
   const [soloPendientes, setSoloPendientes] = useState(false);
@@ -518,7 +527,7 @@ function TabPartidos({ usuario, partidos, picks, onPickSaved, onGrupoClick, allP
       <ProximoPartido partidos={partidos} />
       {filtrados.length === 0 && <div className="empty">{soloPendientes ? "🎉 ¡No tenés partidos pendientes!" : "No hay partidos para los filtros seleccionados"}</div>}
       {filtrados.map(p => (
-        <PartidoCard key={p.id} partido={p} pick={picks[p.id]} onPickSaved={onPickSaved} esAdmin={false} onResultadoCargado={() => {}} onGrupoClick={onGrupoClick} allPicks={allPicks} usuarios={usuarios} />
+        <PartidoCard key={p.id} partido={p} pick={picks[p.id]} onPickSaved={onPickSaved} onPickDeleted={onPickDeleted} esAdmin={false} onResultadoCargado={() => {}} onGrupoClick={onGrupoClick} allPicks={allPicks} usuarios={usuarios} />
       ))}
     </div>
   );
@@ -1323,6 +1332,12 @@ export default function App() {
     const { data } = await supabase.from("picks").upsert([{ usuario_id: usuario.id, partido_id: partidoId, ...pickData }], { onConflict: "usuario_id,partido_id" }).select().single();
     if (data) { setPicks(prev => ({ ...prev, [partidoId]: data })); setAllPicks(prev => ({ ...prev, [usuario.id]: { ...(prev[usuario.id] || {}), [partidoId]: data } })); }
   };
+
+  const handlePickDeleted = async (partidoId) => {
+    await supabase.from("picks").delete().eq("usuario_id", usuario.id).eq("partido_id", partidoId);
+    setPicks(prev => { const n = { ...prev }; delete n[partidoId]; return n; });
+    setAllPicks(prev => { const n = { ...prev }; if (n[usuario.id]) { n[usuario.id] = { ...n[usuario.id] }; delete n[usuario.id][partidoId]; } return n; });
+  };
   const handleAprobar = async (uid) => { await supabase.from("usuarios").update({ aprobado: true }).eq("id", uid); cargarUsuarios(); };
   const handleRechazar = async (uid) => { await supabase.from("usuarios").delete().eq("id", uid); cargarUsuarios(); };
   const handleResultadoCargado = async (partidoId, resultado) => { await supabase.from("partidos").update(resultado).eq("id", partidoId); cargarPartidos(); };
@@ -1384,7 +1399,7 @@ export default function App() {
         </button>
       ))}</nav>
       <main className="main">
-        {tab === "partidos" && <TabPartidos usuario={usuario} partidos={partidos} picks={picks} onPickSaved={handlePickSaved} onGrupoClick={handleGrupoClick} allPicks={allPicks} usuarios={usuarios} />}
+        {tab === "partidos" && <TabPartidos usuario={usuario} partidos={partidos} picks={picks} onPickSaved={handlePickSaved} onPickDeleted={handlePickDeleted} onGrupoClick={handleGrupoClick} allPicks={allPicks} usuarios={usuarios} />}
         {tab === "grupos" && <TabGrupos partidos={partidos} grupoInicial={grupoSeleccionado} />}
         {tab === "llaves" && <TabLlaves partidos={partidos} />}
         {tab === "picks" && <TabPicksGlobales partidos={partidos} allPicks={allPicks} usuarios={usuarios} />}
