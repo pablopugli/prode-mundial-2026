@@ -45,6 +45,8 @@ const css = `
   .nav { background: var(--fondo2); border-bottom: 1px solid var(--borde); display: flex; padding: 0 24px; gap: 4px; overflow-x: auto; }
   .nav-tab { background: none; border: none; color: var(--texto2); padding: 14px 18px; cursor: pointer; font-family: 'DM Sans', sans-serif; font-size: 14px; font-weight: 500; border-bottom: 2px solid transparent; white-space: nowrap; }
   .nav-tab.active { color: var(--verde); border-bottom-color: var(--verde); }
+  .nav-tab-inner { display: flex; align-items: center; gap: 6px; }
+  .nav-badge { background: var(--rojo); color: #fff; font-size: 11px; font-weight: 700; padding: 1px 6px; border-radius: 10px; line-height: 16px; }
   .main { flex: 1; padding: 32px 24px; max-width: 900px; margin: 0 auto; width: 100%; }
   .login-wrap { min-height: 100vh; display: flex; align-items: center; justify-content: center; background: var(--fondo); padding: 24px; }
   .login-card { background: var(--fondo2); border: 1px solid var(--borde); border-radius: 16px; padding: 48px 40px; width: 100%; max-width: 420px; }
@@ -190,7 +192,28 @@ function Login({ onLogin }) {
   );
 }
 
-function PartidoCard({ partido, pick, onPickSaved, esAdmin, onResultadoCargado, onGrupoClick }) {
+function useContador(partido) {
+  const [tiempo, setTiempo] = useState("");
+  useEffect(() => {
+    const tick = () => {
+      const inicio = parseFechaPartido(partido.fecha, partido.hora);
+      const diff = inicio - new Date();
+      if (diff <= 0) { setTiempo(""); return; }
+      const h = Math.floor(diff / 3600000);
+      const m = Math.floor((diff % 3600000) / 60000);
+      const s = Math.floor((diff % 60000) / 1000);
+      if (h > 0) setTiempo(`${h}h ${m}m`);
+      else if (m > 0) setTiempo(`${m}m ${s}s`);
+      else setTiempo(`${s}s`);
+    };
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, [partido]);
+  return tiempo;
+}
+
+function PartidoCard({ partido, pick, onPickSaved, esAdmin, onResultadoCargado, onGrupoClick, allPicks, usuarios }) {
   const [gl, setGl] = useState(pick?.goles_local ?? "");
   const [gv, setGv] = useState(pick?.goles_visitante ?? "");
   const [clasificado, setClasificado] = useState(pick?.clasificado ?? null);
@@ -200,6 +223,7 @@ function PartidoCard({ partido, pick, onPickSaved, esAdmin, onResultadoCargado, 
   const [adminGv, setAdminGv] = useState(partido.goles_visitante ?? "");
   const [adminClas, setAdminClas] = useState(partido.clasificado ?? null);
   const [editando, setEditando] = useState(false);
+  const contador = useContador(partido);
   const tienePick = gl !== "" && gl !== null && gv !== "" && gv !== null;
   const tieneResultado = partido.goles_local !== null && partido.goles_local !== undefined;
   const esEliminatoria = partido.fase !== "Grupos";
@@ -225,7 +249,10 @@ function PartidoCard({ partido, pick, onPickSaved, esAdmin, onResultadoCargado, 
     <div className={`partido-card ${tienePick ? "con-pick" : ""}`}>
       <div className="partido-meta">
         <span className="partido-fecha">{partido.fecha} · {partido.hora}{partido.canal ? ` · 📺 ${partido.canal}` : ''}</span>
-        <span className="partido-grupo" style={partido.grupo ? { cursor: "pointer" } : {}} onClick={() => partido.grupo && onGrupoClick && onGrupoClick(partido.grupo)}>{partido.grupo ? `Grupo ${partido.grupo}` : partido.fase}</span>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          {contador && !esAdmin && <span style={{ fontSize: 11, color: "var(--texto2)", background: "var(--fondo3)", border: "1px solid var(--borde)", padding: "2px 8px", borderRadius: 20 }}>⏱ {contador}</span>}
+          <span className="partido-grupo" style={partido.grupo ? { cursor: "pointer" } : {}} onClick={() => partido.grupo && onGrupoClick && onGrupoClick(partido.grupo)}>{partido.grupo ? `Grupo ${partido.grupo}` : partido.fase}</span>
+        </div>
       </div>
       <div className="partido-equipos">
         <span className="equipo-nombre">{partido.local}</span>
@@ -275,6 +302,30 @@ function PartidoCard({ partido, pick, onPickSaved, esAdmin, onResultadoCargado, 
           </div>
         </div>
       )}
+      {!esAdmin && estadoPartido(partido) === "cerrado" && allPicks && usuarios && (() => {
+        const picksPartido = usuarios
+          .filter(u => u.aprobado && !u.es_admin)
+          .map(u => ({ nombre: u.nombre, pick: allPicks[u.id]?.[partido.id] }))
+          .filter(x => x.pick);
+        if (picksPartido.length === 0) return null;
+        return (
+          <div style={{ marginTop: 14, paddingTop: 14, borderTop: "1px solid var(--borde)" }}>
+            <div style={{ fontSize: 11, color: "var(--texto2)", textTransform: "uppercase", letterSpacing: 1, marginBottom: 10 }}>Pronósticos del grupo</div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+              {picksPartido.map(({ nombre, pick }) => {
+                const pts = calcularPuntos(pick, partido);
+                return (
+                  <div key={nombre} style={{ background: "var(--fondo3)", border: "1px solid var(--borde)", borderRadius: 8, padding: "6px 12px", fontSize: 13 }}>
+                    <span style={{ color: "var(--texto2)", marginRight: 6 }}>{nombre}</span>
+                    <span style={{ fontFamily: "'Bebas Neue', cursive", fontSize: 16 }}>{pick.goles_local} - {pick.goles_visitante}</span>
+                    {pts !== null && <span style={{ marginLeft: 8, color: pts > 0 ? "var(--verde)" : "var(--texto2)", fontFamily: "'Bebas Neue', cursive", fontSize: 14 }}>{pts}pts</span>}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })()}
       {esAdmin && tieneResultado && !editando && (
         <div className="resultado-inputs">
           <span style={{ fontSize: 12, color: "var(--verde)" }}>✓ Cargado: {partido.goles_local} - {partido.goles_visitante}</span>
@@ -377,7 +428,7 @@ function TabGrupos({ partidos, grupoInicial }) {
   );
 }
 
-function TabPartidos({ usuario, partidos, picks, onPickSaved, onGrupoClick }) {
+function TabPartidos({ usuario, partidos, picks, onPickSaved, onGrupoClick, allPicks, usuarios }) {
   const [filtroFecha, setFiltroFecha] = useState("");
   const [filtroGrupo, setFiltroGrupo] = useState("");
 
@@ -423,7 +474,7 @@ function TabPartidos({ usuario, partidos, picks, onPickSaved, onGrupoClick }) {
       </div>
       {filtrados.length === 0 && <div className="empty">No hay partidos para los filtros seleccionados</div>}
       {filtrados.map(p => (
-        <PartidoCard key={p.id} partido={p} pick={picks[p.id]} onPickSaved={onPickSaved} esAdmin={false} onResultadoCargado={() => {}} onGrupoClick={onGrupoClick} />
+        <PartidoCard key={p.id} partido={p} pick={picks[p.id]} onPickSaved={onPickSaved} esAdmin={false} onResultadoCargado={() => {}} onGrupoClick={onGrupoClick} allPicks={allPicks} usuarios={usuarios} />
       ))}
     </div>
   );
@@ -431,21 +482,50 @@ function TabPartidos({ usuario, partidos, picks, onPickSaved, onGrupoClick }) {
 
 function TabTabla({ usuarios, allPicks, partidos }) {
   const aprobados = usuarios.filter(u => u.aprobado && !u.es_admin);
-  const calcTotal = (uid) => partidos.reduce((t, p) => t + (calcularPuntos(allPicks[uid]?.[p.id], p) || 0), 0);
-  const tabla = aprobados.map(u => ({ ...u, pts: calcTotal(u.id) })).sort((a, b) => b.pts - a.pts);
+
+  const calcStats = (uid) => {
+    let pts = 0, exactos = 0, unox2 = 0, bonus = 0;
+    partidos.forEach(p => {
+      const pick = allPicks[uid]?.[p.id];
+      if (!pick || p.goles_local === null || p.goles_local === undefined) return;
+      const resL = p.goles_local, resV = p.goles_visitante;
+      const pkL = pick.goles_local, pkV = pick.goles_visitante;
+      const res1x2 = resL > resV ? "L" : resL < resV ? "V" : "E";
+      const pk1x2 = pkL > pkV ? "L" : pkL < pkV ? "V" : "E";
+      if (pk1x2 === res1x2) { pts += 1; unox2++; }
+      if (pkL === resL && pkV === resV) { pts += 2; exactos++; }
+      if (p.fase !== "Grupos" && pick.clasificado && p.clasificado && pick.clasificado === p.clasificado) { pts += 1; bonus++; }
+    });
+    return { pts, exactos, unox2, bonus };
+  };
+
+  const tabla = aprobados.map(u => ({ ...u, ...calcStats(u.id) })).sort((a, b) => b.pts - a.pts);
   if (tabla.length === 0) return <div className="empty">No hay participantes aprobados aún</div>;
+
   return (
     <div>
       <div className="section-title">TABLA DE POSICIONES</div>
       <div className="section-sub">Actualizada en tiempo real con cada resultado</div>
       <div className="tabla-wrap">
         <table className="tabla">
-          <thead><tr><th>#</th><th>Jugador</th><th>Puntos</th></tr></thead>
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Jugador</th>
+              <th style={{ textAlign: "center" }}>Pts</th>
+              <th style={{ textAlign: "center" }}>🎯 Exactos</th>
+              <th style={{ textAlign: "center" }}>✓ 1X2</th>
+              <th style={{ textAlign: "center" }}>⭐ Bonus</th>
+            </tr>
+          </thead>
           <tbody>{tabla.map((u, i) => (
             <tr key={u.id} className={`pos-${i + 1}`}>
-              <td><span className="pos-num">{i + 1}</span></td>
-              <td>{u.nombre}</td>
-              <td><span className="pts-total">{u.pts}</span></td>
+              <td><span className="pos-num">{i === 0 ? "👑" : i + 1}</span></td>
+              <td style={{ fontWeight: i === 0 ? 700 : 400 }}>{u.nombre}</td>
+              <td style={{ textAlign: "center" }}><span className="pts-total">{u.pts}</span></td>
+              <td style={{ textAlign: "center", color: "var(--verde)", fontFamily: "'Bebas Neue', cursive", fontSize: 18 }}>{u.exactos}</td>
+              <td style={{ textAlign: "center", color: "var(--texto2)", fontFamily: "'Bebas Neue', cursive", fontSize: 18 }}>{u.unox2}</td>
+              <td style={{ textAlign: "center", color: "var(--oro)", fontFamily: "'Bebas Neue', cursive", fontSize: 18 }}>{u.bonus}</td>
             </tr>
           ))}</tbody>
         </table>
@@ -457,10 +537,31 @@ function TabTabla({ usuarios, allPicks, partidos }) {
 function TabAdmin({ usuarios, partidos, onAprobar, onRechazar, onResultadoCargado }) {
   const pendientes = usuarios.filter(u => !u.aprobado && !u.es_admin);
   const aprobados = usuarios.filter(u => u.aprobado && !u.es_admin);
+  const [fechaAdmin, setFechaAdmin] = useState("");
+
+  const jugados = partidos.filter(p => p.goles_local !== null && p.goles_local !== undefined).length;
+  const fechas = [...new Set(partidos.map(p => p.fecha))];
+  const partidosFiltrados = fechaAdmin ? partidos.filter(p => p.fecha === fechaAdmin) : partidos;
+
   return (
     <div>
       <div className="section-title">ADMINISTRACIÓN</div>
-      <div className="fase-label">Pendientes ({pendientes.length})</div>
+
+      {/* Resumen */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))", gap: 10, marginBottom: 28 }}>
+        {[
+          { label: "Participantes", valor: aprobados.length, color: "var(--verde)" },
+          { label: "Pendientes", valor: pendientes.length, color: "var(--oro)" },
+          { label: "Partidos jugados", valor: `${jugados}/${partidos.length}`, color: "var(--texto)" },
+        ].map(({ label, valor, color }) => (
+          <div key={label} className="admin-card" style={{ padding: "14px 16px", textAlign: "center" }}>
+            <div style={{ fontFamily: "'Bebas Neue', cursive", fontSize: 28, color }}>{valor}</div>
+            <div style={{ fontSize: 12, color: "var(--texto2)", marginTop: 2 }}>{label}</div>
+          </div>
+        ))}
+      </div>
+
+      <div className="fase-label">Pendientes de aprobación ({pendientes.length})</div>
       {pendientes.length === 0 && <div style={{ color: "var(--texto2)", fontSize: 14, padding: "16px 0" }}>No hay solicitudes pendientes</div>}
       {pendientes.map(u => (
         <div key={u.id} className="admin-card">
@@ -484,7 +585,12 @@ function TabAdmin({ usuarios, partidos, onAprobar, onRechazar, onResultadoCargad
         </div>
       ))}
       <div className="fase-label" style={{ marginTop: 28 }}>Cargar resultados</div>
-      {partidos.map(p => <PartidoCard key={p.id} partido={p} pick={null} onPickSaved={() => {}} esAdmin={true} onResultadoCargado={onResultadoCargado} />)}
+      <select value={fechaAdmin} onChange={e => setFechaAdmin(e.target.value)}
+        style={{ background: "var(--fondo3)", border: "1px solid var(--borde)", color: "var(--texto)", borderRadius: 8, padding: "8px 12px", fontSize: 13, fontFamily: "'DM Sans', sans-serif", cursor: "pointer", outline: "none", marginBottom: 16 }}>
+        <option value="">📅 Todas las fechas</option>
+        {fechas.map(f => <option key={f} value={f}>{f}</option>)}
+      </select>
+      {partidosFiltrados.map(p => <PartidoCard key={p.id} partido={p} pick={null} onPickSaved={() => {}} esAdmin={true} onResultadoCargado={onResultadoCargado} />)}
     </div>
   );
 }
@@ -580,6 +686,53 @@ function TabLlaves({ partidos }) {
   );
 }
 
+function TabCuenta({ usuario, onPasswordChanged }) {
+  const [passActual, setPassActual] = useState("");
+  const [passNueva, setPassNueva] = useState("");
+  const [passConfirm, setPassConfirm] = useState("");
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  const handleCambio = async () => {
+    setError(""); setSuccess("");
+    if (!passActual || !passNueva || !passConfirm) { setError("Completá todos los campos"); return; }
+    if (passActual !== usuario.password) { setError("La contraseña actual es incorrecta"); return; }
+    if (passNueva.length < 6) { setError("La nueva contraseña debe tener al menos 6 caracteres"); return; }
+    if (passNueva !== passConfirm) { setError("Las contraseñas no coinciden"); return; }
+    setLoading(true);
+    const { data, error } = await supabase.from("usuarios").update({ password: passNueva }).eq("id", usuario.id).select().single();
+    setLoading(false);
+    if (error) { setError("Error al cambiar la contraseña"); return; }
+    setSuccess("¡Contraseña actualizada!");
+    onPasswordChanged(data);
+    setPassActual(""); setPassNueva(""); setPassConfirm("");
+  };
+
+  return (
+    <div>
+      <div className="section-title">MI CUENTA</div>
+      <div className="admin-card" style={{ maxWidth: 420 }}>
+        <div style={{ marginBottom: 20 }}>
+          <div style={{ fontSize: 12, color: "var(--texto2)", marginBottom: 4 }}>Nombre</div>
+          <div style={{ fontSize: 16, fontWeight: 500 }}>{usuario.nombre}</div>
+        </div>
+        <div style={{ marginBottom: 24 }}>
+          <div style={{ fontSize: 12, color: "var(--texto2)", marginBottom: 4 }}>Email</div>
+          <div style={{ fontSize: 16 }}>{usuario.email}</div>
+        </div>
+        <div className="fase-label" style={{ marginTop: 0, marginBottom: 16 }}>Cambiar contraseña</div>
+        <div className="form-group"><label className="form-label">Contraseña actual</label><input className="form-input" type="password" value={passActual} onChange={e => setPassActual(e.target.value)} placeholder="••••••••" /></div>
+        <div className="form-group"><label className="form-label">Nueva contraseña</label><input className="form-input" type="password" value={passNueva} onChange={e => setPassNueva(e.target.value)} placeholder="Mínimo 6 caracteres" /></div>
+        <div className="form-group"><label className="form-label">Confirmar contraseña</label><input className="form-input" type="password" value={passConfirm} onChange={e => setPassConfirm(e.target.value)} placeholder="Repetí la nueva contraseña" /></div>
+        {error && <div className="form-error">{error}</div>}
+        {success && <div className="form-success">{success}</div>}
+        <button className="btn-primary" onClick={handleCambio} disabled={loading} style={{ marginTop: 8 }}>{loading ? "GUARDANDO..." : "CAMBIAR CONTRASEÑA"}</button>
+      </div>
+    </div>
+  );
+}
+
 export default function App() {
   const [usuario, setUsuario] = useState(() => {
     try { const u = localStorage.getItem("prode_usuario"); return u ? JSON.parse(u) : null; } catch { return null; }
@@ -628,11 +781,20 @@ export default function App() {
 
   const [grupoSeleccionado, setGrupoSeleccionado] = useState("");
 
+  // Partidos abiertos sin pick cargado
+  const pendientes = partidos.filter(p => {
+    const estado = estadoPartido(p);
+    if (estado === "cerrado") return false;
+    const pick = picks[p.id];
+    return !pick || pick.goles_local === null || pick.goles_local === undefined;
+  }).length;
+
   const tabs = [
-    { id: "partidos", label: "Partidos" },
+    { id: "partidos", label: "Partidos", badge: pendientes > 0 ? pendientes : null },
     { id: "grupos", label: "Grupos" },
     { id: "llaves", label: "Llaves" },
     { id: "tabla", label: "Tabla" },
+    { id: "cuenta", label: "Mi cuenta" },
     ...(usuario.es_admin ? [{ id: "admin", label: "⚙️ Admin" }] : [])
   ];
 
@@ -648,12 +810,20 @@ export default function App() {
         <div className="header-logo">PRODE <span>MUNDIAL</span></div>
         <div className="header-right"><span className="header-name">{usuario.nombre}</span><button className="btn-logout" onClick={handleLogout}>Salir</button></div>
       </header>
-      <nav className="nav">{tabs.map(t => <button key={t.id} className={`nav-tab ${tab === t.id ? "active" : ""}`} onClick={() => setTab(t.id)}>{t.label}</button>)}</nav>
+      <nav className="nav">{tabs.map(t => (
+        <button key={t.id} className={`nav-tab ${tab === t.id ? "active" : ""}`} onClick={() => setTab(t.id)}>
+          <span className="nav-tab-inner">
+            {t.label}
+            {t.badge && <span className="nav-badge">{t.badge}</span>}
+          </span>
+        </button>
+      ))}</nav>
       <main className="main">
-        {tab === "partidos" && <TabPartidos usuario={usuario} partidos={partidos} picks={picks} onPickSaved={handlePickSaved} onGrupoClick={handleGrupoClick} />}
+        {tab === "partidos" && <TabPartidos usuario={usuario} partidos={partidos} picks={picks} onPickSaved={handlePickSaved} onGrupoClick={handleGrupoClick} allPicks={allPicks} usuarios={usuarios} />}
         {tab === "grupos" && <TabGrupos partidos={partidos} grupoInicial={grupoSeleccionado} />}
         {tab === "llaves" && <TabLlaves partidos={partidos} />}
         {tab === "tabla" && <TabTabla usuarios={usuarios} allPicks={allPicks} partidos={partidos} />}
+        {tab === "cuenta" && <TabCuenta usuario={usuario} onPasswordChanged={(u) => { localStorage.setItem("prode_usuario", JSON.stringify(u)); setUsuario(u); }} />}
         {tab === "admin" && usuario.es_admin && <TabAdmin usuarios={usuarios} partidos={partidos} onAprobar={handleAprobar} onRechazar={handleRechazar} onResultadoCargado={handleResultadoCargado} />}
       </main>
     </div></>
