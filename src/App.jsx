@@ -260,6 +260,9 @@ function PartidoCard({ partido, pick, onPickSaved, esAdmin, onResultadoCargado }
               <button className="btn-guardar" onClick={guardarPick} disabled={saving}>{saving ? "..." : "GUARDAR"}</button>
               {saved && <span className="save-confirm">✓ Guardado</span>}
             </div>
+            {(gl === "" || gv === "") && (gl !== "" || gv !== "") && (
+              <div style={{ fontSize: 12, color: "var(--oro)", marginTop: 8 }}>⚠️ Falta completar los dos goles para guardar</div>
+            )}
           </>
         );
       })()}
