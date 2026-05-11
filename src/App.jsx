@@ -330,6 +330,7 @@ function PartidoCard({ partido, pick, onPickSaved, esAdmin, onResultadoCargado, 
         <div className="resultado-inputs">
           <span style={{ fontSize: 12, color: "var(--verde)" }}>✓ Cargado: {partido.goles_local} - {partido.goles_visitante}</span>
           <button style={{ background: "none", border: "1px solid var(--borde)", color: "var(--texto2)", borderRadius: 6, padding: "6px 14px", cursor: "pointer", fontSize: 12, fontFamily: "'DM Sans', sans-serif" }} onClick={() => setEditando(true)}>Editar</button>
+          <button style={{ background: "none", border: "1px solid var(--rojo)", color: "var(--rojo)", borderRadius: 6, padding: "6px 14px", cursor: "pointer", fontSize: 12, fontFamily: "'DM Sans', sans-serif" }} onClick={() => onResultadoCargado(partido.id, { goles_local: null, goles_visitante: null, clasificado: null })}>Borrar</button>
         </div>
       )}
       {esAdmin && (!tieneResultado || editando) && (
@@ -781,10 +782,11 @@ export default function App() {
 
   const [grupoSeleccionado, setGrupoSeleccionado] = useState("");
 
-  // Partidos abiertos sin pick cargado
+  // Badge: partidos que cierran en las próximas 24hs y no tienen pick
   const pendientes = partidos.filter(p => {
-    const estado = estadoPartido(p);
-    if (estado === "cerrado") return false;
+    const inicio = parseFechaPartido(p.fecha, p.hora);
+    const diff = inicio - new Date();
+    if (diff <= 0 || diff > 24 * 60 * 60 * 1000) return false; // solo próximas 24hs
     const pick = picks[p.id];
     return !pick || pick.goles_local === null || pick.goles_local === undefined;
   }).length;
