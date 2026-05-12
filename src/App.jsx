@@ -458,6 +458,18 @@ function TabGrupos({ partidos, grupoInicial }) {
   );
 }
 
+
+function fechaAInput(f) {
+  if (!f) return "";
+  const [d, m, y] = f.split("/");
+  return `${y}-${m}-${d}`;
+}
+function inputAFecha(v) {
+  if (!v) return "";
+  const [y, m, d] = v.split("-");
+  return `${d}/${m}/${y}`;
+}
+
 function TabPartidos({ usuario, partidos, picks, onPickSaved, onPickDeleted, onGrupoClick, allPicks, usuarios }) {
   const [filtroFecha, setFiltroFecha] = useState("");
   const [filtroGrupo, setFiltroGrupo] = useState("");
@@ -493,14 +505,19 @@ function TabPartidos({ usuario, partidos, picks, onPickSaved, onPickDeleted, onG
     <div>
       <div className="section-title">PARTIDOS</div>
       <div style={{ display: "flex", gap: 10, marginBottom: 20, flexWrap: "wrap" }}>
-        <select
-          value={filtroFecha}
-          onChange={e => setFiltroFecha(e.target.value)}
-          style={{ background: "var(--fondo3)", border: "1px solid var(--borde)", color: filtroFecha ? "var(--texto)" : "var(--texto2)", borderRadius: 8, padding: "8px 12px", fontSize: 13, fontFamily: "'DM Sans', sans-serif", cursor: "pointer", outline: "none" }}
-        >
-          <option value="">📅 Todas las fechas</option>
-          {fechas.map(f => <option key={f} value={f}>{f}</option>)}
-        </select>
+        <div style={{ position: "relative", display: "flex", alignItems: "center" }}>
+          <input
+            type="date"
+            value={fechaAInput(filtroFecha)}
+            min={fechaAInput(fechas[0])}
+            max={fechaAInput(fechas[fechas.length - 1])}
+            onChange={e => setFiltroFecha(inputAFecha(e.target.value))}
+            style={{ background: "var(--fondo3)", border: `1px solid ${filtroFecha ? "var(--verde)" : "var(--borde)"}`, color: filtroFecha ? "var(--texto)" : "var(--texto2)", borderRadius: 8, padding: "8px 12px", fontSize: 13, fontFamily: "'DM Sans', sans-serif", cursor: "pointer", outline: "none", colorScheme: "dark" }}
+          />
+          {filtroFecha && (
+            <button onClick={() => setFiltroFecha("")} style={{ position: "absolute", right: 8, background: "none", border: "none", color: "var(--texto2)", cursor: "pointer", fontSize: 14, padding: 0 }}>✕</button>
+          )}
+        </div>
         <select
           value={filtroGrupo}
           onChange={e => setFiltroGrupo(e.target.value)}
