@@ -175,6 +175,14 @@ function Login({ onLogin }) {
     const { error } = await supabase.from("usuarios").insert([{ nombre: nombre.trim(), email: email.trim(), password, telefono: telefono.trim(), aprobado: false, es_admin: false }]);
     setLoading(false);
     if (error) { setError(error.code === "23505" ? "Ya existe una cuenta con ese email" : "Error al registrarse"); return; }
+    // Notificar al admin por email
+    try {
+      await fetch("/api/notify-registro", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ nombre: nombre.trim(), email: email.trim(), telefono: telefono.trim() }),
+      });
+    } catch (e) { console.log("Error enviando notificación:", e); }
     setSuccess("¡Registro exitoso! Tu cuenta está pendiente de aprobación.");
     setNombre(""); setEmail(""); setPassword(""); setTelefono("");
     setTimeout(() => { setTab("login"); setSuccess(""); }, 3000);
