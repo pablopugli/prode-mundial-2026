@@ -536,46 +536,61 @@ function TabPartidos({ usuario, partidos, picks, onPickSaved, onPickDeleted, onG
 
 
 function ProximoPartido({ partidos }) {
-  const [tiempo, setTiempo] = useState({ h: 0, m: 0, s: 0, texto: "" });
-
-  const proximo = partidos
-    .filter(p => p.goles_local === null || p.goles_local === undefined)
-    .sort((a, b) => parseFechaPartido(a.fecha, a.hora) - parseFechaPartido(b.fecha, b.hora))[0];
+  const [tick, setTick] = useState(0);
 
   useEffect(() => {
-    if (!proximo) return;
-    const tick = () => {
-      const inicio = parseFechaPartido(proximo.fecha, proximo.hora);
-      const diff = inicio - new Date();
-      if (diff <= 0) { setTiempo({ h: 0, m: 0, s: 0, texto: "¡Arranca ahora!" }); return; }
-      const d = Math.floor(diff / 86400000);
-      const h = Math.floor((diff % 86400000) / 3600000);
-      const m = Math.floor((diff % 3600000) / 60000);
-      const s = Math.floor((diff % 60000) / 1000);
-      const texto = d > 0 ? `${d}d ${h}h ${m}m` : h > 0 ? `${h}h ${m}m ${s}s` : `${m}m ${s}s`;
-      setTiempo({ h, m, s, texto });
-    };
-    tick();
-    const id = setInterval(tick, 1000);
+    const id = setInterval(() => setTick(t => t + 1), 1000);
     return () => clearInterval(id);
-  }, [proximo]);
+  }, []);
 
-  if (!proximo) return null;
+  const ahora = new Date();
+  const hoy = ahora.toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit", year: "numeric" }).replace(/\//g, "/");
+
+  // Solo partidos de hoy sin resultado, dentro de las próximas 3 horas o en juego
+  const partidosHoy = partidos
+    .filter(p => {
+      if (p.goles_local !== null && p.goles_local !== undefined) return false;
+      const inicio = parseFechaPartido(p.fecha, p.hora);
+      const diffMs = inicio - ahora;
+      // Mostrar si faltan menos de 3 horas O ya empezó (hasta 2 horas después = en juego)
+      return diffMs <= 3 * 60 * 60 * 1000 && diffMs > -2 * 60 * 60 * 1000;
+    })
+    .sort((a, b) => parseFechaPartido(a.fecha, a.hora) - parseFechaPartido(b.fecha, b.hora));
+
+  if (partidosHoy.length === 0) return null;
 
   return (
-    <div style={{ background: "linear-gradient(135deg, #111a15 0%, #1a2820 100%)", border: "1px solid var(--verde)", borderRadius: 14, padding: "20px 24px", marginBottom: 24 }}>
-      <div style={{ fontSize: 11, color: "var(--verde)", textTransform: "uppercase", letterSpacing: 2, marginBottom: 12 }}>⚽ Próximo partido</div>
-      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
-        <span style={{ flex: 1, fontSize: 18, fontWeight: 700 }}>{proximo.local}</span>
-        <span style={{ fontFamily: "'Bebas Neue', cursive", fontSize: 22, color: "var(--texto2)" }}>VS</span>
-        <span style={{ flex: 1, fontSize: 18, fontWeight: 700, textAlign: "right" }}>{proximo.visitante}</span>
-      </div>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
-        <span style={{ fontSize: 12, color: "var(--texto2)" }}>{proximo.fecha} · {proximo.hora}{proximo.canal ? ` · 📺 ${proximo.canal}` : ""}</span>
-        <div style={{ background: "var(--verde)", color: "#000", fontFamily: "'Bebas Neue', cursive", fontSize: 22, padding: "4px 16px", borderRadius: 8, letterSpacing: 2 }}>
-          {tiempo.texto || "..."}
-        </div>
-      </div>
+    <div style={{ marginBottom: 24 }}>
+      {partidosHoy.map(p => {
+        const inicio = parseFechaPartido(p.fecha, p.hora);
+        const diffMs = inicio - ahora;
+        const enJuego = diffMs <= 0;
+        const min = Math.floor(Math.abs(diffMs) / 60000);
+        const seg = Math.floor((Math.abs(diffMs) % 60000) / 1000);
+        const h = Math.floor(Math.abs(diffMs) / 3600000);
+        const m = Math.floor((Math.abs(diffMs) % 3600000) / 60000);
+        const textoTiempo = enJuego ? "EN JUEGO" : h > 0 ? `${h}h ${m}m` : `${m}m ${seg}s`;
+        const colorBadge = enJuego ? "var(--rojo)" : "var(--verde)";
+
+        return (
+          <div key={p.id} style={{ background: "linear-gradient(135deg, #111a15 0%, #1a2820 100%)", border: `1px solid ${colorBadge}`, borderRadius: 14, padding: "20px 24px", marginBottom: 12 }}>
+            <div style={{ fontSize: 11, color: colorBadge, textTransform: "uppercase", letterSpacing: 2, marginBottom: 12 }}>
+              {enJuego ? "🔴 En juego" : "⚽ Próximo partido"}
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
+              <span style={{ flex: 1, fontSize: 18, fontWeight: 700 }}>{p.local}</span>
+              <span style={{ fontFamily: "'Bebas Neue', cursive", fontSize: 22, color: "var(--texto2)" }}>VS</span>
+              <span style={{ flex: 1, fontSize: 18, fontWeight: 700, textAlign: "right" }}>{p.visitante}</span>
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
+              <span style={{ fontSize: 12, color: "var(--texto2)" }}>{p.fecha} · {p.hora}{p.canal ? ` · 📺 ${p.canal}` : ""}</span>
+              <div style={{ background: colorBadge, color: enJuego ? "#fff" : "#000", fontFamily: "'Bebas Neue', cursive", fontSize: 22, padding: "4px 16px", borderRadius: 8, letterSpacing: 2 }}>
+                {textoTiempo}
+              </div>
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }
