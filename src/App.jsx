@@ -175,14 +175,6 @@ function Login({ onLogin }) {
     const { error } = await supabase.from("usuarios").insert([{ nombre: nombre.trim(), email: email.trim(), password, telefono: telefono.trim(), aprobado: false, es_admin: false }]);
     setLoading(false);
     if (error) { setError(error.code === "23505" ? "Ya existe una cuenta con ese email" : "Error al registrarse"); return; }
-    // Notificar al admin por email
-    try {
-      await fetch("/api/notify-registro", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ nombre: nombre.trim(), email: email.trim(), telefono: telefono.trim() }),
-      });
-    } catch (e) { console.log("Error enviando notificación:", e); }
     setSuccess("¡Registro exitoso! Tu cuenta está pendiente de aprobación.");
     setNombre(""); setEmail(""); setPassword(""); setTelefono("");
     setTimeout(() => { setTab("login"); setSuccess(""); }, 3000);
@@ -1349,6 +1341,41 @@ export default function App() {
     else if (usuario?.id) { cargarPartidos(); cargarUsuarios(); cargarPicks(usuario.id); cargarAllPicks(); }
   }, [usuario?.id, esPublica]);
 
+  // Recordatorio por mail — revisar cada 30 minutos si hay partidos sin pick en 2 horas
+  useEffect(() => {
+    if (!usuario || usuario.es_admin || esPublica) return;
+    const enviarRecordatorio = async () => {
+      const ahora = new Date();
+      const pendientes = partidos.filter(p => {
+        const inicio = parseFechaPartido(p.fecha, p.hora);
+        const diff = inicio - ahora;
+        if (diff <= 0 || diff > 2 * 60 * 60 * 1000) return false;
+        const pick = picks[p.id];
+        return !pick || pick.goles_local === null || pick.goles_local === undefined;
+      });
+      if (pendientes.length === 0) return;
+      // Verificar que no mandamos mail en la última hora (usando localStorage)
+      const key = "prode_recordatorio_" + usuario.id;
+      const ultimo = localStorage.getItem(key);
+      if (ultimo && Date.now() - Number(ultimo) < 60 * 60 * 1000) return;
+      localStorage.setItem(key, Date.now().toString());
+      try {
+        await fetch("/api/notify-recordatorio", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            nombre: usuario.nombre,
+            email: usuario.email,
+            partidos: pendientes.map(p => ({ fecha: p.fecha, hora: p.hora, local: p.local, visitante: p.visitante, canal: p.canal })),
+          }),
+        });
+      } catch (e) { console.log("Error enviando recordatorio:", e); }
+    };
+    const id = setInterval(enviarRecordatorio, 30 * 60 * 1000); // cada 30 min
+    enviarRecordatorio(); // también al entrar
+    return () => clearInterval(id);
+  }, [usuario?.id, partidos, picks]);
+
   // Vista pública — solo muestra la tabla sin login
   if (esPublica) return (
     <><style>{css}</style>
@@ -1378,7 +1405,21 @@ export default function App() {
     setPicks(prev => { const n = { ...prev }; delete n[partidoId]; return n; });
     setAllPicks(prev => { const n = { ...prev }; if (n[usuario.id]) { n[usuario.id] = { ...n[usuario.id] }; delete n[usuario.id][partidoId]; } return n; });
   };
-  const handleAprobar = async (uid) => { await supabase.from("usuarios").update({ aprobado: true }).eq("id", uid); cargarUsuarios(); };
+  const handleAprobar = async (uid) => {
+    await supabase.from("usuarios").update({ aprobado: true }).eq("id", uid);
+    // Notificar al usuario que fue aprobado
+    const u = usuarios.find(u => u.id === uid);
+    if (u) {
+      try {
+        await fetch("/api/notify-aprobado", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ nombre: u.nombre, email: u.email }),
+        });
+      } catch (e) { console.log("Error enviando notificación:", e); }
+    }
+    cargarUsuarios();
+  };
   const handleRechazar = async (uid) => { await supabase.from("usuarios").delete().eq("id", uid); cargarUsuarios(); };
   const handleResultadoCargado = async (partidoId, resultado) => { await supabase.from("partidos").update(resultado).eq("id", partidoId); cargarPartidos(); };
   const handleResetPassword = async (uid, nombre) => {
