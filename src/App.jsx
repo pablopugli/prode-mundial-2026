@@ -505,7 +505,7 @@ function TabPartidos({ usuario, partidos, picks, onPickSaved, onPickDeleted, onG
     <div>
       <div className="section-title">PARTIDOS</div>
       <div style={{ display: "flex", gap: 10, marginBottom: 20, flexWrap: "wrap" }}>
-        <div style={{ position: "relative", display: "flex", alignItems: "center" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
           <input
             type="date"
             value={fechaAInput(filtroFecha)}
@@ -515,7 +515,7 @@ function TabPartidos({ usuario, partidos, picks, onPickSaved, onPickDeleted, onG
             style={{ background: "var(--fondo3)", border: `1px solid ${filtroFecha ? "var(--verde)" : "var(--borde)"}`, color: filtroFecha ? "var(--texto)" : "var(--texto2)", borderRadius: 8, padding: "8px 12px", fontSize: 13, fontFamily: "'DM Sans', sans-serif", cursor: "pointer", outline: "none", colorScheme: "dark" }}
           />
           {filtroFecha && (
-            <button onClick={() => setFiltroFecha("")} style={{ position: "absolute", right: 8, background: "none", border: "none", color: "var(--texto2)", cursor: "pointer", fontSize: 14, padding: 0 }}>✕</button>
+            <button onClick={() => setFiltroFecha("")} style={{ background: "none", border: "1px solid var(--borde)", color: "var(--texto2)", borderRadius: 6, padding: "6px 10px", cursor: "pointer", fontSize: 13 }}>✕</button>
           )}
         </div>
         <select
