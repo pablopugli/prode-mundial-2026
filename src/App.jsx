@@ -628,8 +628,8 @@ function calcRacha(uid, partidos, allPicks) {
   return racha;
 }
 
-function calcStats(uid, partidos, allPicks) {
-  let pts = 0, exactos = 0, unox2 = 0, bonus = 0;
+function calcStats(uid, partidos, allPicks, podioPredicciones, podioResultado) {
+  let pts = 0, exactos = 0, unox2 = 0, bonus = 0, ptsPoido = 0;
   partidos.forEach(p => {
     const pick = allPicks[uid]?.[p.id];
     if (!pick || p.goles_local === null || p.goles_local === undefined) return;
@@ -641,12 +641,21 @@ function calcStats(uid, partidos, allPicks) {
     if (pkL === resL && pkV === resV) { pts += 2; exactos++; }
     if (p.fase !== "Grupos" && pick.clasificado && p.clasificado && pick.clasificado === p.clasificado) { pts += 1; bonus++; }
   });
-  return { pts, exactos, unox2, bonus };
+  // Puntos podio
+  if (podioPredicciones && podioResultado?.primero) {
+    const pred = podioPredicciones[uid];
+    if (pred) {
+      if (pred.primero === podioResultado.primero) { pts += 10; ptsPoido += 10; }
+      if (pred.segundo === podioResultado.segundo) { pts += 6; ptsPoido += 6; }
+      if (pred.tercero === podioResultado.tercero) { pts += 4; ptsPoido += 4; }
+    }
+  }
+  return { pts, exactos, unox2, bonus, ptsPoido };
 }
 
-function TabTabla({ usuarios, allPicks, partidos, esPublica }) {
+function TabTabla({ usuarios, allPicks, partidos, esPublica, podioPredicciones, podioResultado }) {
   const aprobados = usuarios.filter(u => u.aprobado && !u.es_admin);
-  const tabla = aprobados.map(u => ({ ...u, ...calcStats(u.id, partidos, allPicks), racha: calcRacha(u.id, partidos, allPicks) })).sort((a, b) => b.pts - a.pts);
+  const tabla = aprobados.map(u => ({ ...u, ...calcStats(u.id, partidos, allPicks, podioPredicciones, podioResultado), racha: calcRacha(u.id, partidos, allPicks) })).sort((a, b) => b.pts - a.pts);
   if (tabla.length === 0) return <div className="empty">No hay participantes aprobados aún</div>;
 
   const compartirWhatsApp = () => {
@@ -1297,6 +1306,172 @@ function ResumenJornada({ partidos, allPicks, usuarios }) {
   );
 }
 
+
+function TabPodio({ usuario, partidos, usuarios, podioPredicciones, podioResultado, onGuardarPrediccion, onGuardarResultado, esAdmin }) {
+  const aprobados = usuarios.filter(u => u.aprobado && !u.es_admin);
+
+  // Obtener todos los equipos únicos de los partidos
+  const equipos = [...new Set([
+    ...partidos.map(p => p.local),
+    ...partidos.map(p => p.visitante),
+  ])].sort();
+
+  // Predicción del usuario actual
+  const miPred = podioPredicciones[usuario.id] || { primero: "", segundo: "", tercero: "" };
+  const [primero, setPrimero] = useState(miPred.primero || "");
+  const [segundo, setSegundo] = useState(miPred.segundo || "");
+  const [tercero, setTercero] = useState(miPred.tercero || "");
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  // Admin: resultado real
+  const [resPrimero, setResPrimero] = useState(podioResultado?.primero || "");
+  const [resSegundo, setResSegundo] = useState(podioResultado?.segundo || "");
+  const [resTercero, setResTercero] = useState(podioResultado?.tercero || "");
+  const [savingRes, setSavingRes] = useState(false);
+  const [savedRes, setSavedRes] = useState(false);
+
+  const PUNTOS = { primero: 10, segundo: 6, tercero: 4 };
+
+  const calcPuntosPodio = (pred) => {
+    if (!pred || !podioResultado) return 0;
+    let pts = 0;
+    if (pred.primero && pred.primero === podioResultado.primero) pts += PUNTOS.primero;
+    if (pred.segundo && pred.segundo === podioResultado.segundo) pts += PUNTOS.segundo;
+    if (pred.tercero && pred.tercero === podioResultado.tercero) pts += PUNTOS.tercero;
+    return pts;
+  };
+
+  const guardar = async () => {
+    if (!primero && !segundo && !tercero) return;
+    setSaving(true);
+    await onGuardarPrediccion({ primero, segundo, tercero });
+    setSaving(false); setSaved(true);
+    setTimeout(() => setSaved(false), 2000);
+  };
+
+  const guardarResultado = async () => {
+    setSavingRes(true);
+    await onGuardarResultado({ primero: resPrimero, segundo: resSegundo, tercero: resTercero });
+    setSavingRes(false); setSavedRes(true);
+    setTimeout(() => setSavedRes(false), 2000);
+  };
+
+  const select = (value, onChange, excluir = []) => (
+    <select value={value} onChange={e => onChange(e.target.value)}
+      style={{ background: "var(--fondo3)", border: `1px solid ${value ? "var(--verde)" : "var(--borde)"}`, color: value ? "var(--texto)" : "var(--texto2)", borderRadius: 8, padding: "10px 14px", fontSize: 14, fontFamily: "'DM Sans', sans-serif", cursor: "pointer", outline: "none", width: "100%" }}>
+      <option value="">— Elegir equipo —</option>
+      {equipos.filter(e => !excluir.includes(e) || e === value).map(e => <option key={e} value={e}>{e}</option>)}
+    </select>
+  );
+
+  return (
+    <div>
+      <div className="section-title">PREDICCIÓN DE PODIO</div>
+      <div className="section-sub">Elegí los 3 primeros del torneo · Disponible al terminar la fase de grupos</div>
+
+      {/* Sistema de puntos */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10, marginBottom: 24 }}>
+        {[{ pos: "🥇 Campeón", pts: 10 }, { pos: "🥈 Subcampeón", pts: 6 }, { pos: "🥉 3er puesto", pts: 4 }].map(({ pos, pts }) => (
+          <div key={pos} className="admin-card" style={{ textAlign: "center", padding: "12px 8px" }}>
+            <div style={{ fontFamily: "'Bebas Neue', cursive", fontSize: 26, color: "var(--verde)" }}>{pts} pts</div>
+            <div style={{ fontSize: 12, color: "var(--texto2)", marginTop: 2 }}>{pos}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Predicción del usuario */}
+      {!esAdmin && (
+        <div className="admin-card" style={{ marginBottom: 20 }}>
+          <div className="grupo-titulo" style={{ marginBottom: 16 }}>Tu predicción</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            <div>
+              <div style={{ fontSize: 12, color: "var(--texto2)", marginBottom: 6 }}>🥇 Campeón (10 pts)</div>
+              {select(primero, setPrimero, [segundo, tercero])}
+            </div>
+            <div>
+              <div style={{ fontSize: 12, color: "var(--texto2)", marginBottom: 6 }}>🥈 Subcampeón (6 pts)</div>
+              {select(segundo, setSegundo, [primero, tercero])}
+            </div>
+            <div>
+              <div style={{ fontSize: 12, color: "var(--texto2)", marginBottom: 6 }}>🥉 3er puesto (4 pts)</div>
+              {select(tercero, setTercero, [primero, segundo])}
+            </div>
+          </div>
+          <div style={{ marginTop: 16, display: "flex", alignItems: "center", gap: 12 }}>
+            <button className="btn-guardar" onClick={guardar} disabled={saving}>{saving ? "..." : "GUARDAR"}</button>
+            {saved && <span className="save-confirm">✓ Guardado</span>}
+          </div>
+        </div>
+      )}
+
+      {/* Resultado real (solo admin) */}
+      {esAdmin && (
+        <div className="admin-card" style={{ marginBottom: 20 }}>
+          <div className="grupo-titulo" style={{ marginBottom: 16 }}>Cargar resultado real</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            <div>
+              <div style={{ fontSize: 12, color: "var(--texto2)", marginBottom: 6 }}>🥇 Campeón</div>
+              {select(resPrimero, setResPrimero, [resSegundo, resTercero])}
+            </div>
+            <div>
+              <div style={{ fontSize: 12, color: "var(--texto2)", marginBottom: 6 }}>🥈 Subcampeón</div>
+              {select(resSegundo, setResSegundo, [resPrimero, resTercero])}
+            </div>
+            <div>
+              <div style={{ fontSize: 12, color: "var(--texto2)", marginBottom: 6 }}>🥉 3er puesto</div>
+              {select(resTercero, setResTercero, [resPrimero, resSegundo])}
+            </div>
+          </div>
+          <div style={{ marginTop: 16, display: "flex", alignItems: "center", gap: 12 }}>
+            <button className="btn-cargar-res" onClick={guardarResultado} disabled={savingRes}>{savingRes ? "..." : "CARGAR"}</button>
+            {savedRes && <span className="save-confirm">✓ Guardado</span>}
+          </div>
+        </div>
+      )}
+
+      {/* Predicciones de todos — visibles siempre para admin, para usuarios solo si ya cargaron la suya */}
+      {(esAdmin || miPred.primero) && aprobados.length > 0 && (
+        <div>
+          <div className="fase-label" style={{ marginTop: 0, marginBottom: 12 }}>Predicciones del grupo</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {aprobados.map(u => {
+              const pred = podioPredicciones[u.id];
+              const pts = calcPuntosPodio(pred);
+              return (
+                <div key={u.id} className="admin-card" style={{ padding: "12px 16px" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: pred ? 8 : 0 }}>
+                    <span style={{ fontWeight: 600, fontSize: 14 }}>{u.nombre}</span>
+                    {podioResultado?.primero && pred && <span style={{ fontFamily: "'Bebas Neue', cursive", fontSize: 18, color: pts > 0 ? "var(--verde)" : "var(--texto2)" }}>+{pts} pts</span>}
+                  </div>
+                  {pred ? (
+                    <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                      {[{ icon: "🥇", val: pred.primero, pts: PUNTOS.primero }, { icon: "🥈", val: pred.segundo, pts: PUNTOS.segundo }, { icon: "🥉", val: pred.tercero, pts: PUNTOS.tercero }].map(({ icon, val, pts: p }) => {
+                        const acertado = podioResultado?.primero && val && (
+                          (icon === "🥇" && val === podioResultado.primero) ||
+                          (icon === "🥈" && val === podioResultado.segundo) ||
+                          (icon === "🥉" && val === podioResultado.tercero)
+                        );
+                        return val ? (
+                          <div key={icon} style={{ background: acertado ? "rgba(0,196,106,0.15)" : "var(--fondo3)", border: `1px solid ${acertado ? "var(--verde)" : "var(--borde)"}`, borderRadius: 8, padding: "6px 12px", fontSize: 13 }}>
+                            {icon} {val} {acertado && <span style={{ color: "var(--verde)", fontSize: 11 }}>✓ +{p}pts</span>}
+                          </div>
+                        ) : null;
+                      })}
+                    </div>
+                  ) : (
+                    <div style={{ fontSize: 12, color: "var(--texto2)", fontStyle: "italic" }}>Sin predicción cargada</div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function App() {
   const esPublica = new URLSearchParams(window.location.search).get("public") === "1";
   const [usuario, setUsuario] = useState(() => {
@@ -1308,6 +1483,8 @@ export default function App() {
   const [allPicks, setAllPicks] = useState({});
   const [tab, setTab] = useState("partidos");
   const [grupoSeleccionado, setGrupoSeleccionado] = useState("");
+  const [podioPredicciones, setPodioPredicciones] = useState({});
+  const [podioResultado, setPodioResultado] = useState(null);
 
   const cargarPartidos = async () => { const { data } = await supabase.from("partidos").select("*").order("id"); if (data) setPartidos(data); };
   const cargarUsuarios = async () => { const { data } = await supabase.from("usuarios").select("*").order("nombre"); if (data) setUsuarios(data); };
@@ -1327,6 +1504,13 @@ export default function App() {
     if (rUsuarios.data) setUsuarios(rUsuarios.data);
     if (rPicks.data) { const map = {}; rPicks.data.forEach(p => { map[p.partido_id] = p; }); setPicks(map); }
     if (rAllPicks.data) { const map = {}; rAllPicks.data.forEach(p => { if (!map[p.usuario_id]) map[p.usuario_id] = {}; map[p.usuario_id][p.partido_id] = p; }); setAllPicks(map); }
+    // Cargar podio
+    const [rPodioPreds, rPodioRes] = await Promise.all([
+      supabase.from("podio_predicciones").select("*"),
+      supabase.from("podio_resultado").select("*").single(),
+    ]);
+    if (rPodioPreds.data) { const map = {}; rPodioPreds.data.forEach(p => { map[p.usuario_id] = p; }); setPodioPredicciones(map); }
+    if (rPodioRes.data) setPodioResultado(rPodioRes.data);
     // Setear usuario DESPUÉS de tener los datos listos
     setUsuario(u);
   };
@@ -1386,7 +1570,7 @@ export default function App() {
       </header>
       <main className="main">
         {usuarios.length > 0
-          ? <TabTabla usuarios={usuarios} allPicks={allPicks} partidos={partidos} esPublica={true} />
+          ? <TabTabla usuarios={usuarios} allPicks={allPicks} partidos={partidos} esPublica={true} podioPredicciones={podioPredicciones} podioResultado={podioResultado} />
           : <div className="loading">Cargando...</div>}
         <div style={{ textAlign: "center", marginTop: 24 }}>
           <a href="/" style={{ color: "var(--verde)", fontSize: 14, textDecoration: "none" }}>→ Ingresar al prode</a>
@@ -1405,6 +1589,23 @@ export default function App() {
     setPicks(prev => { const n = { ...prev }; delete n[partidoId]; return n; });
     setAllPicks(prev => { const n = { ...prev }; if (n[usuario.id]) { n[usuario.id] = { ...n[usuario.id] }; delete n[usuario.id][partidoId]; } return n; });
   };
+  const handleGuardarPrediccion = async (pred) => {
+    const { data } = await supabase.from("podio_predicciones")
+      .upsert([{ usuario_id: usuario.id, ...pred }], { onConflict: "usuario_id" })
+      .select().single();
+    if (data) setPodioPredicciones(prev => ({ ...prev, [usuario.id]: data }));
+  };
+
+  const handleGuardarResultado = async (res) => {
+    const existing = await supabase.from("podio_resultado").select("id").single();
+    if (existing.data) {
+      await supabase.from("podio_resultado").update(res).eq("id", existing.data.id);
+    } else {
+      await supabase.from("podio_resultado").insert([res]);
+    }
+    setPodioResultado(res);
+  };
+
   const handleAprobar = async (uid) => {
     await supabase.from("usuarios").update({ aprobado: true }).eq("id", uid);
     // Notificar al usuario que fue aprobado
@@ -1454,6 +1655,7 @@ export default function App() {
     { id: "llaves", label: "Llaves" },
     { id: "picks", label: "Picks" },
     { id: "tabla", label: "Tabla" },
+    { id: "podio", label: "🏆 Podio" },
     { id: "reglas", label: "Reglas" },
     { id: "cuenta", label: "Mi cuenta" },
     ...(usuario.es_admin ? [{ id: "admin", label: "⚙️ Admin" }] : [])
@@ -1484,8 +1686,9 @@ export default function App() {
         {tab === "grupos" && <TabGrupos partidos={partidos} grupoInicial={grupoSeleccionado} />}
         {tab === "llaves" && <TabLlaves partidos={partidos} />}
         {tab === "picks" && <TabPicksGlobales partidos={partidos} allPicks={allPicks} usuarios={usuarios} />}
-        {tab === "tabla" && <TabTabla usuarios={usuarios} allPicks={allPicks} partidos={partidos} esPublica={false} />}
+        {tab === "tabla" && <TabTabla usuarios={usuarios} allPicks={allPicks} partidos={partidos} esPublica={false} podioPredicciones={podioPredicciones} podioResultado={podioResultado} />}
         {tab === "reglas" && <TabComoFunciona />}
+        {tab === "podio" && <TabPodio usuario={usuario} partidos={partidos} usuarios={usuarios} podioPredicciones={podioPredicciones} podioResultado={podioResultado} onGuardarPrediccion={handleGuardarPrediccion} onGuardarResultado={handleGuardarResultado} esAdmin={usuario.es_admin} />}
         {tab === "cuenta" && <TabCuenta usuario={usuario} onPasswordChanged={(u) => { localStorage.setItem("prode_usuario", JSON.stringify(u)); setUsuario(u); }} partidos={partidos} allPicks={allPicks} />}
         {tab === "admin" && usuario.es_admin && <TabAdmin usuarios={usuarios} partidos={partidos} onAprobar={handleAprobar} onRechazar={handleRechazar} onResultadoCargado={handleResultadoCargado} onResetPassword={handleResetPassword} />}
       </main>
