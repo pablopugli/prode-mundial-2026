@@ -1085,6 +1085,7 @@ function TabComoFunciona() {
           "En eliminatorias, si pronosticás empate en 90 min, tenés que elegir quién clasifica para sumar el punto bonus.",
           "Podés modificar tu pronóstico hasta 15 minutos antes del inicio del partido.",
           "Los picks de todos se revelan una vez que el partido cierra.",
+          "Un usuario por persona. No se permiten múltiples cuentas para el mismo participante.",
         ].map((regla, i) => (
           <div key={i} style={{ display: "flex", gap: 10, marginBottom: 10, fontSize: 14, lineHeight: 1.5 }}>
             <span style={{ color: "var(--verde)", flexShrink: 0, fontWeight: 700 }}>→</span>
