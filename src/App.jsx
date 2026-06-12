@@ -677,7 +677,6 @@ function TabTabla({ usuarios, allPicks, partidos, esPublica, podioPredicciones, 
       </div>
       <div className="section-sub">Actualizada en tiempo real con cada resultado</div>
 
-      <ResumenJornada partidos={partidos} allPicks={allPicks} usuarios={usuarios} />
       {/* Podio animado */}
       {tabla.length >= 2 && (
         <div className="podio-wrap">
@@ -758,6 +757,8 @@ function TabTabla({ usuarios, allPicks, partidos, esPublica, podioPredicciones, 
           ))}</tbody>
         </table>
       </div>
+
+      <ResumenJornada partidos={partidos} allPicks={allPicks} usuarios={usuarios} />
     </div>
   );
 }
@@ -1085,7 +1086,6 @@ function TabComoFunciona() {
           "En eliminatorias, si pronosticás empate en 90 min, tenés que elegir quién clasifica para sumar el punto bonus.",
           "Podés modificar tu pronóstico hasta 15 minutos antes del inicio del partido.",
           "Los picks de todos se revelan una vez que el partido cierra.",
-          "Un usuario por persona. No se permiten múltiples cuentas para el mismo participante.",
         ].map((regla, i) => (
           <div key={i} style={{ display: "flex", gap: 10, marginBottom: 10, fontSize: 14, lineHeight: 1.5 }}>
             <span style={{ color: "var(--verde)", flexShrink: 0, fontWeight: 700 }}>→</span>
@@ -1093,49 +1093,6 @@ function TabComoFunciona() {
           </div>
         ))}
       </div>
-
-      <div className="admin-card" style={{ marginBottom: 16 }}>
-        <div className="grupo-titulo" style={{ marginBottom: 12 }}>Predicción de podio</div>
-        {[
-          { pts: "10 puntos", desc: "Acertás el campeón del torneo" },
-          { pts: "6 puntos", desc: "Acertás el subcampeón" },
-          { pts: "4 puntos", desc: "Acertás el tercer puesto" },
-        ].map(({ pts, desc }) => (
-          <div key={pts} style={{ display: "flex", gap: 14, alignItems: "flex-start", marginBottom: 10 }}>
-            <div style={{ background: "var(--oro)", color: "#000", fontFamily: "'Bebas Neue', cursive", fontSize: 16, padding: "4px 10px", borderRadius: 6, flexShrink: 0, letterSpacing: 1 }}>{pts}</div>
-            <div style={{ fontSize: 14, color: "var(--texto)", lineHeight: 1.5, paddingTop: 4 }}>{desc}</div>
-          </div>
-        ))}
-        <div style={{ marginTop: 12, padding: "10px 14px", background: "var(--fondo3)", borderRadius: 8, fontSize: 13, color: "var(--texto2)" }}>
-          La predicción de podio se habilita al terminar la fase de grupos. A partir de los 16avos también podés pronosticar los partidos de eliminatorias con el mismo sistema de puntos (1X2, exacto y bonus clasificado).
-        </div>
-      </div>
-
-      <div className="admin-card" style={{ marginBottom: 16 }}>
-        <div className="grupo-titulo" style={{ marginBottom: 12 }}>Inscripción y premios</div>
-        <div style={{ display: "flex", gap: 14, alignItems: "center", marginBottom: 16, padding: "12px 16px", background: "var(--fondo3)", borderRadius: 8 }}>
-          <span style={{ fontSize: 28 }}>💰</span>
-          <div>
-            <div style={{ fontFamily: "'Bebas Neue', cursive", fontSize: 24, color: "var(--verde)" }}>$30.000</div>
-            <div style={{ fontSize: 12, color: "var(--texto2)" }}>Inscripción por participante</div>
-          </div>
-        </div>
-        {[
-          { pos: "🥇 1er puesto", pct: "50%", desc: "del pozo total" },
-          { pos: "🥈 2do puesto", pct: "30%", desc: "del pozo total" },
-          { pos: "🥉 3er puesto", pct: "20%", desc: "del pozo total" },
-        ].map(({ pos, pct, desc }) => (
-          <div key={pos} style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 10, padding: "10px 14px", background: "var(--fondo3)", borderRadius: 8 }}>
-            <span style={{ fontSize: 16, fontWeight: 600, flex: 1 }}>{pos}</span>
-            <span style={{ fontFamily: "'Bebas Neue', cursive", fontSize: 22, color: "var(--oro)" }}>{pct}</span>
-            <span style={{ fontSize: 12, color: "var(--texto2)" }}>{desc}</span>
-          </div>
-        ))}
-        <div style={{ fontSize: 12, color: "var(--texto2)", marginTop: 8 }}>
-          Ejemplo con 20 participantes: pozo total $600.000 → 1° $300.000 · 2° $180.000 · 3° $120.000
-        </div>
-      </div>
-
     </div>
   );
 }
