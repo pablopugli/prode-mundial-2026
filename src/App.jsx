@@ -677,6 +677,7 @@ function TabTabla({ usuarios, allPicks, partidos, esPublica, podioPredicciones, 
       </div>
       <div className="section-sub">Actualizada en tiempo real con cada resultado</div>
 
+      <ResumenJornada partidos={partidos} allPicks={allPicks} usuarios={usuarios} />
       {/* Podio animado */}
       {tabla.length >= 2 && (
         <div className="podio-wrap">
@@ -757,8 +758,6 @@ function TabTabla({ usuarios, allPicks, partidos, esPublica, podioPredicciones, 
           ))}</tbody>
         </table>
       </div>
-
-      <ResumenJornada partidos={partidos} allPicks={allPicks} usuarios={usuarios} />
     </div>
   );
 }
@@ -1582,13 +1581,26 @@ export default function App() {
 
   const handlePickSaved = async (partidoId, pickData) => {
     const { data } = await supabase.from("picks").upsert([{ usuario_id: usuario.id, partido_id: partidoId, ...pickData }], { onConflict: "usuario_id,partido_id" }).select().single();
-    if (data) { setPicks(prev => ({ ...prev, [partidoId]: data })); setAllPicks(prev => ({ ...prev, [usuario.id]: { ...(prev[usuario.id] || {}), [partidoId]: data } })); }
+    if (data) {
+      setPicks(prev => ({ ...prev, [partidoId]: data }));
+      setAllPicks(prev => ({ ...prev, [usuario.id]: { ...(prev[usuario.id] || {}), [partidoId]: data } }));
+      // Recargar picks completos para asegurar sincronización
+      const { data: todosLosPicks } = await supabase.from("picks").select("*").eq("usuario_id", usuario.id);
+      if (todosLosPicks) {
+        const map = {};
+        todosLosPicks.forEach(p => { map[p.partido_id] = p; });
+        setPicks(map);
+      }
+    }
   };
 
   const handlePickDeleted = async (partidoId) => {
     await supabase.from("picks").delete().eq("usuario_id", usuario.id).eq("partido_id", partidoId);
     setPicks(prev => { const n = { ...prev }; delete n[partidoId]; return n; });
     setAllPicks(prev => { const n = { ...prev }; if (n[usuario.id]) { n[usuario.id] = { ...n[usuario.id] }; delete n[usuario.id][partidoId]; } return n; });
+    // Recargar para confirmar
+    const { data } = await supabase.from("picks").select("*").eq("usuario_id", usuario.id);
+    if (data) { const map = {}; data.forEach(p => { map[p.partido_id] = p; }); setPicks(map); }
   };
   const handleGuardarPrediccion = async (pred) => {
     const { data } = await supabase.from("podio_predicciones")
