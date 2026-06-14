@@ -762,7 +762,7 @@ function TabTabla({ usuarios, allPicks, partidos, esPublica, podioPredicciones, 
   );
 }
 
-function TabAdmin({ usuarios, partidos, onAprobar, onRechazar, onResultadoCargado, onResetPassword }) {
+function TabAdmin({ usuarios, partidos, allPicks, onAprobar, onRechazar, onResultadoCargado, onResetPassword }) {
   const pendientes = usuarios.filter(u => !u.aprobado && !u.es_admin);
   const aprobados = usuarios.filter(u => u.aprobado && !u.es_admin);
   const [fechaAdmin, setFechaAdmin] = useState("");
@@ -823,6 +823,63 @@ function TabAdmin({ usuarios, partidos, onAprobar, onRechazar, onResultadoCargad
           </div>
         </div>
       ))}
+      <div className="fase-label" style={{ marginTop: 28 }}>Estado de picks por partido</div>
+      <div style={{ marginBottom: 16, display: "flex", gap: 8, flexWrap: "wrap" }}>
+        {[...new Set(partidos.filter(p => estadoPartido(p) !== "cerrado").map(p => p.fecha))].sort().map(f => (
+          <button key={f} onClick={() => setFechaAdmin(f)}
+            style={{ background: fechaAdmin === f ? "var(--verde)" : "var(--fondo3)", color: fechaAdmin === f ? "#000" : "var(--texto2)", border: `1px solid ${fechaAdmin === f ? "var(--verde)" : "var(--borde)"}`, borderRadius: 8, padding: "6px 14px", fontSize: 12, fontFamily: "'DM Sans', sans-serif", cursor: "pointer", fontWeight: fechaAdmin === f ? 600 : 400 }}>
+            {f}
+          </button>
+        ))}
+      </div>
+      {fechaAdmin && (() => {
+        const partidosFecha = partidos.filter(p => p.fecha === fechaAdmin && estadoPartido(p) !== "cerrado");
+        if (partidosFecha.length === 0) return <div style={{ color: "var(--texto2)", fontSize: 13, marginBottom: 20 }}>No hay partidos abiertos en esa fecha.</div>;
+        return (
+          <div style={{ marginBottom: 24 }}>
+            {partidosFecha.map(p => {
+              const conPick = aprobados.filter(u => {
+                const pk = allPicks[u.id]?.[p.id];
+                return pk && pk.goles_local !== null && pk.goles_local !== undefined;
+              });
+              const sinPick = aprobados.filter(u => {
+                const pk = allPicks[u.id]?.[p.id];
+                return !pk || pk.goles_local === null || pk.goles_local === undefined;
+              });
+              return (
+                <div key={p.id} className="admin-card" style={{ marginBottom: 10, padding: "14px 18px" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10, flexWrap: "wrap", gap: 6 }}>
+                    <div>
+                      <div style={{ fontWeight: 600, fontSize: 14 }}>{p.local} vs {p.visitante}</div>
+                      <div style={{ fontSize: 12, color: "var(--texto2)" }}>{p.hora}{p.canal ? ` · ${p.canal}` : ""}</div>
+                    </div>
+                    <span style={{ fontFamily: "'Bebas Neue', cursive", fontSize: 16, color: conPick.length === aprobados.length ? "var(--verde)" : "var(--oro)" }}>
+                      {conPick.length}/{aprobados.length}
+                    </span>
+                  </div>
+                  {sinPick.length > 0 && (
+                    <div>
+                      <div style={{ fontSize: 11, color: "var(--rojo)", textTransform: "uppercase", letterSpacing: 1, marginBottom: 6 }}>⚠️ Sin pick</div>
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                        {sinPick.map(u => (
+                          <a key={u.id} href={`https://wa.me/${u.telefono?.replace(/\D/g,'')}`} target="_blank" rel="noreferrer"
+                            style={{ background: "rgba(255,59,59,0.1)", border: "1px solid var(--rojo)", borderRadius: 6, padding: "4px 10px", fontSize: 12, color: "var(--rojo)", textDecoration: "none" }}>
+                            {u.nombre}
+                          </a>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {sinPick.length === 0 && (
+                    <div style={{ fontSize: 12, color: "var(--verde)" }}>✓ Todos cargaron su pick</div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        );
+      })()}
+
       <div className="fase-label" style={{ marginTop: 28 }}>Cargar resultados</div>
       <select value={fechaAdmin} onChange={e => setFechaAdmin(e.target.value)}
         style={{ background: "var(--fondo3)", border: "1px solid var(--borde)", color: "var(--texto)", borderRadius: 8, padding: "8px 12px", fontSize: 13, fontFamily: "'DM Sans', sans-serif", cursor: "pointer", outline: "none", marginBottom: 16 }}>
@@ -1581,26 +1638,13 @@ export default function App() {
 
   const handlePickSaved = async (partidoId, pickData) => {
     const { data } = await supabase.from("picks").upsert([{ usuario_id: usuario.id, partido_id: partidoId, ...pickData }], { onConflict: "usuario_id,partido_id" }).select().single();
-    if (data) {
-      setPicks(prev => ({ ...prev, [partidoId]: data }));
-      setAllPicks(prev => ({ ...prev, [usuario.id]: { ...(prev[usuario.id] || {}), [partidoId]: data } }));
-      // Recargar picks completos para asegurar sincronización
-      const { data: todosLosPicks } = await supabase.from("picks").select("*").eq("usuario_id", usuario.id);
-      if (todosLosPicks) {
-        const map = {};
-        todosLosPicks.forEach(p => { map[p.partido_id] = p; });
-        setPicks(map);
-      }
-    }
+    if (data) { setPicks(prev => ({ ...prev, [partidoId]: data })); setAllPicks(prev => ({ ...prev, [usuario.id]: { ...(prev[usuario.id] || {}), [partidoId]: data } })); }
   };
 
   const handlePickDeleted = async (partidoId) => {
     await supabase.from("picks").delete().eq("usuario_id", usuario.id).eq("partido_id", partidoId);
     setPicks(prev => { const n = { ...prev }; delete n[partidoId]; return n; });
     setAllPicks(prev => { const n = { ...prev }; if (n[usuario.id]) { n[usuario.id] = { ...n[usuario.id] }; delete n[usuario.id][partidoId]; } return n; });
-    // Recargar para confirmar
-    const { data } = await supabase.from("picks").select("*").eq("usuario_id", usuario.id);
-    if (data) { const map = {}; data.forEach(p => { map[p.partido_id] = p; }); setPicks(map); }
   };
   const handleGuardarPrediccion = async (pred) => {
     const { data } = await supabase.from("podio_predicciones")
@@ -1703,7 +1747,7 @@ export default function App() {
         {tab === "reglas" && <TabComoFunciona />}
         {tab === "podio" && <TabPodio usuario={usuario} partidos={partidos} usuarios={usuarios} podioPredicciones={podioPredicciones} podioResultado={podioResultado} onGuardarPrediccion={handleGuardarPrediccion} onGuardarResultado={handleGuardarResultado} esAdmin={usuario.es_admin} />}
         {tab === "cuenta" && <TabCuenta usuario={usuario} onPasswordChanged={(u) => { localStorage.setItem("prode_usuario", JSON.stringify(u)); setUsuario(u); }} partidos={partidos} allPicks={allPicks} />}
-        {tab === "admin" && usuario.es_admin && <TabAdmin usuarios={usuarios} partidos={partidos} onAprobar={handleAprobar} onRechazar={handleRechazar} onResultadoCargado={handleResultadoCargado} onResetPassword={handleResetPassword} />}
+        {tab === "admin" && usuario.es_admin && <TabAdmin usuarios={usuarios} partidos={partidos} allPicks={allPicks} onAprobar={handleAprobar} onRechazar={handleRechazar} onResultadoCargado={handleResultadoCargado} onResetPassword={handleResetPassword} />}
       </main>
     </div></>
   );
