@@ -677,7 +677,6 @@ function TabTabla({ usuarios, allPicks, partidos, esPublica, podioPredicciones, 
       </div>
       <div className="section-sub">Actualizada en tiempo real con cada resultado</div>
 
-      <ResumenJornada partidos={partidos} allPicks={allPicks} usuarios={usuarios} />
       {/* Podio animado */}
       {tabla.length >= 2 && (
         <div className="podio-wrap">
@@ -758,6 +757,8 @@ function TabTabla({ usuarios, allPicks, partidos, esPublica, podioPredicciones, 
           ))}</tbody>
         </table>
       </div>
+
+      <ResumenJornada partidos={partidos} allPicks={allPicks} usuarios={usuarios} />
     </div>
   );
 }
@@ -862,7 +863,7 @@ function TabAdmin({ usuarios, partidos, allPicks, onAprobar, onRechazar, onResul
                       <div style={{ fontSize: 11, color: "var(--rojo)", textTransform: "uppercase", letterSpacing: 1, marginBottom: 6 }}>⚠️ Sin pick</div>
                       <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
                         {sinPick.map(u => (
-                          <a key={u.id} href={`https://wa.me/${u.telefono?.replace(/\D/g,'')}`} target="_blank" rel="noreferrer"
+                          <a key={u.id} href={"https://wa.me/" + u.telefono?.replace(/\D/g,"")} target="_blank" rel="noreferrer"
                             style={{ background: "rgba(255,59,59,0.1)", border: "1px solid var(--rojo)", borderRadius: 6, padding: "4px 10px", fontSize: 12, color: "var(--rojo)", textDecoration: "none" }}>
                             {u.nombre}
                           </a>
