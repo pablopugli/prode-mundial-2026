@@ -320,10 +320,12 @@ function PartidoCard({ partido, pick, onPickSaved, onPickDeleted, esAdmin, onRes
                 <input className="score-input" type="number" min="0" max="20" value={gv} onChange={e => setGv(e.target.value)} placeholder="0" />
               </div>
               <button className="btn-guardar" onClick={guardarPick} disabled={saving}>{saving ? "..." : "GUARDAR"}</button>
-              {pick && pick.id && !saved && (
-                <button onClick={borrarPick} style={{ background: "none", border: "1px solid var(--borde)", color: "var(--texto2)", borderRadius: 8, padding: "9px 14px", fontSize: 12, fontFamily: "'DM Sans', sans-serif", cursor: "pointer" }}>🗑 Borrar</button>
+              {pick && pick.id && (
+                <>
+                  <span className="save-confirm">✓ Guardado</span>
+                  <button onClick={borrarPick} style={{ background: "none", border: "1px solid var(--borde)", color: "var(--texto2)", borderRadius: 8, padding: "9px 14px", fontSize: 12, fontFamily: "'DM Sans', sans-serif", cursor: "pointer" }}>🗑 Borrar</button>
+                </>
               )}
-              {saved && <span className="save-confirm">✓ Guardado</span>}
               {errorGuardado && <span style={{ fontSize: 13, color: "var(--rojo)" }}>✗ Error al guardar. Probá de nuevo.</span>}
             </div>
             {(gl === "" || gv === "") && (gl !== "" || gv !== "") && (
