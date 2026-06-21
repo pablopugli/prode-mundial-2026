@@ -250,11 +250,20 @@ function PartidoCard({ partido, pick, onPickSaved, onPickDeleted, esAdmin, onRes
   const hayEmpate = tienePick && Number(gl) === Number(gv);
   const pts = tieneResultado ? calcularPuntos(pick, partido) : null;
 
+  const [errorGuardado, setErrorGuardado] = useState(false);
+
   const guardarPick = async () => {
     if (!tienePick) return;
     setSaving(true);
-    await onPickSaved(partido.id, { goles_local: Number(gl), goles_visitante: Number(gv), clasificado });
-    setSaving(false); setSaved(true);
+    setErrorGuardado(false);
+    const ok = await onPickSaved(partido.id, { goles_local: Number(gl), goles_visitante: Number(gv), clasificado });
+    setSaving(false);
+    if (ok) {
+      setSaved(true);
+      setTimeout(() => setSaved(false), 3000);
+    } else {
+      setErrorGuardado(true);
+    }
   };
 
   const borrarPick = async () => {
@@ -315,6 +324,7 @@ function PartidoCard({ partido, pick, onPickSaved, onPickDeleted, esAdmin, onRes
                 <button onClick={borrarPick} style={{ background: "none", border: "1px solid var(--borde)", color: "var(--texto2)", borderRadius: 8, padding: "9px 14px", fontSize: 12, fontFamily: "'DM Sans', sans-serif", cursor: "pointer" }}>🗑 Borrar</button>
               )}
               {saved && <span className="save-confirm">✓ Guardado</span>}
+              {errorGuardado && <span style={{ fontSize: 13, color: "var(--rojo)" }}>✗ Error al guardar. Probá de nuevo.</span>}
             </div>
             {(gl === "" || gv === "") && (gl !== "" || gv !== "") && (
               <div style={{ fontSize: 12, color: "var(--oro)", marginTop: 8 }}>⚠️ Falta completar algún marcador</div>
@@ -1638,8 +1648,14 @@ export default function App() {
   );
 
   const handlePickSaved = async (partidoId, pickData) => {
-    const { data } = await supabase.from("picks").upsert([{ usuario_id: usuario.id, partido_id: partidoId, ...pickData }], { onConflict: "usuario_id,partido_id" }).select().single();
-    if (data) { setPicks(prev => ({ ...prev, [partidoId]: data })); setAllPicks(prev => ({ ...prev, [usuario.id]: { ...(prev[usuario.id] || {}), [partidoId]: data } })); }
+    const { data, error } = await supabase.from("picks").upsert([{ usuario_id: usuario.id, partido_id: partidoId, ...pickData }], { onConflict: "usuario_id,partido_id" }).select().single();
+    if (error || !data) {
+      console.error("Error guardando pick:", error);
+      return false;
+    }
+    setPicks(prev => ({ ...prev, [partidoId]: data }));
+    setAllPicks(prev => ({ ...prev, [usuario.id]: { ...(prev[usuario.id] || {}), [partidoId]: data } }));
+    return true;
   };
 
   const handlePickDeleted = async (partidoId) => {
