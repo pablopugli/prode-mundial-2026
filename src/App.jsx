@@ -484,6 +484,7 @@ function TabPartidos({ usuario, partidos, picks, onPickSaved, onPickDeleted, onG
   const [filtroFecha, setFiltroFecha] = useState("");
   const [filtroGrupo, setFiltroGrupo] = useState("");
   const [soloPendientes, setSoloPendientes] = useState(false);
+  const [mostrarPasados, setMostrarPasados] = useState(false);
 
   if (partidos.length === 0) return <div className="loading">Cargando partidos...</div>;
 
@@ -553,9 +554,41 @@ function TabPartidos({ usuario, partidos, picks, onPickSaved, onPickDeleted, onG
       </div>
       <ProximoPartido partidos={partidos} />
       {filtrados.length === 0 && <div className="empty">{soloPendientes ? "🎉 ¡No tenés partidos pendientes!" : "No hay partidos para los filtros seleccionados"}</div>}
-      {filtrados.map(p => (
-        <PartidoCard key={p.id} partido={p} pick={picks[p.id]} onPickSaved={onPickSaved} onPickDeleted={onPickDeleted} esAdmin={false} onResultadoCargado={() => {}} onGrupoClick={onGrupoClick} allPicks={allPicks} usuarios={usuarios} />
-      ))}
+      {(() => {
+        // Separar partidos pasados (cerrados con fecha anterior a hoy) de los actuales/futuros
+        const hoyInicio = new Date(); hoyInicio.setHours(0,0,0,0);
+        const pasados = [];
+        const actuales = [];
+        filtrados.forEach(p => {
+          const inicio = parseFechaPartido(p.fecha, p.hora);
+          const cerrado = estadoPartido(p) === "cerrado";
+          if (cerrado && inicio < hoyInicio) pasados.push(p);
+          else actuales.push(p);
+        });
+        return (
+          <>
+            {actuales.map(p => (
+              <PartidoCard key={p.id} partido={p} pick={picks[p.id]} onPickSaved={onPickSaved} onPickDeleted={onPickDeleted} esAdmin={false} onResultadoCargado={() => {}} onGrupoClick={onGrupoClick} allPicks={allPicks} usuarios={usuarios} />
+            ))}
+            {pasados.length > 0 && (
+              <div style={{ marginTop: 24 }}>
+                <button onClick={() => setMostrarPasados(p => !p)}
+                  style={{ width: "100%", background: "var(--fondo2)", border: "1px solid var(--borde)", borderRadius: 12, padding: "14px 20px", display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer", color: "var(--texto2)", fontFamily: "'DM Sans', sans-serif", fontSize: 14 }}>
+                  <span>📅 Partidos anteriores ({pasados.length})</span>
+                  <span style={{ fontSize: 18, transform: mostrarPasados ? "rotate(180deg)" : "none", transition: "transform 0.2s" }}>⌄</span>
+                </button>
+                {mostrarPasados && (
+                  <div style={{ marginTop: 12 }}>
+                    {pasados.map(p => (
+                      <PartidoCard key={p.id} partido={p} pick={picks[p.id]} onPickSaved={onPickSaved} onPickDeleted={onPickDeleted} esAdmin={false} onResultadoCargado={() => {}} onGrupoClick={onGrupoClick} allPicks={allPicks} usuarios={usuarios} />
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </>
+        );
+      })()}
     </div>
   );
 }
