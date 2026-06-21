@@ -565,11 +565,8 @@ function TabPartidos({ usuario, partidos, picks, onPickSaved, onPickDeleted, onG
         });
         return (
           <>
-            {actuales.map(p => (
-              <PartidoCard key={p.id} partido={p} pick={picks[p.id]} onPickSaved={onPickSaved} onPickDeleted={onPickDeleted} esAdmin={false} onResultadoCargado={() => {}} onGrupoClick={onGrupoClick} allPicks={allPicks} usuarios={usuarios} />
-            ))}
             {pasados.length > 0 && (
-              <div style={{ marginTop: 24 }}>
+              <div style={{ marginBottom: 24 }}>
                 <button onClick={() => setMostrarPasados(p => !p)}
                   style={{ width: "100%", background: "var(--fondo2)", border: "1px solid var(--borde)", borderRadius: 12, padding: "14px 20px", display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer", color: "var(--texto2)", fontFamily: "'DM Sans', sans-serif", fontSize: 14 }}>
                   <span>📅 Partidos anteriores ({pasados.length})</span>
@@ -584,6 +581,9 @@ function TabPartidos({ usuario, partidos, picks, onPickSaved, onPickDeleted, onG
                 )}
               </div>
             )}
+            {actuales.map(p => (
+              <PartidoCard key={p.id} partido={p} pick={picks[p.id]} onPickSaved={onPickSaved} onPickDeleted={onPickDeleted} esAdmin={false} onResultadoCargado={() => {}} onGrupoClick={onGrupoClick} allPicks={allPicks} usuarios={usuarios} />
+            ))}
           </>
         );
       })()}
