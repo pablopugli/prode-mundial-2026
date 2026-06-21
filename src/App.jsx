@@ -557,12 +557,14 @@ function TabPartidos({ usuario, partidos, picks, onPickSaved, onPickDeleted, onG
       <ProximoPartido partidos={partidos} />
       {filtrados.length === 0 && <div className="empty">{soloPendientes ? "🎉 ¡No tenés partidos pendientes!" : "No hay partidos para los filtros seleccionados"}</div>}
       {(() => {
-        // Separar partidos pasados (ya cerrados) de los actuales/futuros
+        // Separar partidos pasados (cerrados y de días anteriores a hoy) de los actuales/futuros
+        const hoyInicio = new Date(); hoyInicio.setHours(0,0,0,0);
         const pasados = [];
         const actuales = [];
         filtrados.forEach(p => {
+          const inicio = parseFechaPartido(p.fecha, p.hora);
           const cerrado = estadoPartido(p) === "cerrado";
-          if (cerrado) pasados.push(p);
+          if (cerrado && inicio < hoyInicio) pasados.push(p);
           else actuales.push(p);
         });
         return (
