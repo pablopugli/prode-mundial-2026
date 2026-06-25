@@ -973,17 +973,27 @@ function LlaveSlot({ equipo, pos }) {
 
 function TabLlaves({ partidos }) {
   const grupos = ["A","B","C","D","E","F","G","H","I","J","K","L"];
-  const primeros = {}, segundos = {};
+  const primeros = {}, segundos = {}, terceros = {};
+  let todosGruposCompletos = true;
+
   grupos.forEach(g => {
     const tabla = calcPosGrupoSimple(partidos, g);
     const partidosGrupo = partidos.filter(p => p.fase === "Grupos" && p.grupo === g);
     const jugados = partidosGrupo.filter(p => p.goles_local !== null && p.goles_local !== undefined).length;
     const total = partidosGrupo.length;
-    primeros[g] = jugados === total && tabla[0] ? tabla[0].nombre : `1° Grupo ${g}`;
-    segundos[g] = jugados === total && tabla[1] ? tabla[1].nombre : `2° Grupo ${g}`;
+    const completo = jugados === total && total > 0;
+    if (!completo) todosGruposCompletos = false;
+    primeros[g] = completo && tabla[0] ? tabla[0].nombre : `1° Grupo ${g}`;
+    segundos[g] = completo && tabla[1] ? tabla[1].nombre : `2° Grupo ${g}`;
+    if (completo && tabla[2]) terceros[g] = { ...tabla[2], grupo: g };
   });
 
-  // Cruces de 16avos según fixture oficial Mundial 2026
+  // Mejores 8 terceros (ordenados por pts, luego DG, luego GF) — solo si TODOS los grupos terminaron
+  const mejoresTerceros = todosGruposCompletos
+    ? Object.values(terceros).sort((a, b) => b.pts - a.pts || b.dg - a.dg || b.gf - a.gf).slice(0, 8)
+    : [];
+
+  // Cruces de 16avos que NO involucran terceros (fijos según fixture oficial)
   const dieciseis = [
     { id: 1, local: primeros["A"], visitante: segundos["B"] },
     { id: 2, local: primeros["C"], visitante: segundos["D"] },
@@ -999,6 +1009,11 @@ function TabLlaves({ partidos }) {
     { id: 12, local: primeros["L"], visitante: segundos["K"] },
   ];
 
+  // 4 cruces que sí involucran terceros — la FIFA define esto con una tabla de 495
+  // combinaciones posibles según qué grupos exactos aportan los 8 mejores terceros,
+  // por lo que no se puede fijar de antemano. Se muestran "por definir".
+  const crucesConTerceros = 4;
+
   const cruce = (local, visitante, label) => (
     <div style={{ display: "flex", flexDirection: "column", gap: 4, alignItems: "center" }}>
       {label && <div style={{ fontSize: 10, color: "var(--texto2)", textTransform: "uppercase", letterSpacing: 1, marginBottom: 2 }}>{label}</div>}
@@ -1012,6 +1027,38 @@ function TabLlaves({ partidos }) {
     <div>
       <div className="section-title">LLAVES</div>
       <div className="section-sub">Los cruces se completan automáticamente al terminar la fase de grupos</div>
+
+      <div className="fase-label">Clasificados a 16avos (32 equipos)</div>
+      <div className="admin-card" style={{ marginBottom: 16 }}>
+        <div style={{ fontSize: 13, color: "var(--texto2)", marginBottom: 12 }}>
+          Avanzan los 2 primeros de cada grupo (24) + los 8 mejores terceros, según el formato oficial del Mundial 2026.
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))", gap: 8 }}>
+          {grupos.map(g => (
+            <div key={g} style={{ fontSize: 12 }}>
+              <span style={{ color: "var(--verde)", fontWeight: 600 }}>1°</span> {primeros[g]}<br/>
+              <span style={{ color: "var(--verde)", fontWeight: 600 }}>2°</span> {segundos[g]}
+            </div>
+          ))}
+        </div>
+        {todosGruposCompletos ? (
+          <div style={{ marginTop: 16, paddingTop: 16, borderTop: "1px solid var(--borde)" }}>
+            <div style={{ fontSize: 12, color: "var(--oro)", fontWeight: 600, marginBottom: 8 }}>🥉 Mejores 8 terceros</div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+              {mejoresTerceros.map(t => (
+                <div key={t.grupo} style={{ background: "var(--fondo3)", border: "1px solid var(--oro)", borderRadius: 8, padding: "6px 12px", fontSize: 12 }}>
+                  {t.nombre} <span style={{ color: "var(--texto2)" }}>(Grupo {t.grupo})</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <div style={{ marginTop: 16, paddingTop: 16, borderTop: "1px solid var(--borde)", fontSize: 12, color: "var(--texto2)", fontStyle: "italic" }}>
+            Los mejores terceros se calculan cuando termine la fase de grupos en todas las zonas.
+          </div>
+        )}
+      </div>
+
       <div className="fase-label">16avos de Final</div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: 16 }}>
         {dieciseis.map(c => (
@@ -1019,7 +1066,16 @@ function TabLlaves({ partidos }) {
             {cruce(c.local, c.visitante, `Partido ${c.id}`)}
           </div>
         ))}
+        {Array.from({ length: crucesConTerceros }).map((_, i) => (
+          <div key={`tercero-${i}`} className="admin-card" style={{ padding: 16 }}>
+            {cruce("Por definir", "Por definir (mejor 3°)", `Partido ${13 + i}`)}
+          </div>
+        ))}
       </div>
+      <div style={{ fontSize: 11, color: "var(--texto2)", marginTop: 8, fontStyle: "italic" }}>
+        Los 4 cruces con mejores terceros se confirman oficialmente cuando termina la fase de grupos — la FIFA usa una tabla con 495 combinaciones posibles según qué zonas exactas aportan los terceros clasificados.
+      </div>
+
       <div className="fase-label" style={{ marginTop: 24 }}>Octavos, Cuartos, Semis y Final</div>
       <div className="admin-card" style={{ textAlign: "center", color: "var(--texto2)", fontSize: 14, padding: 32 }}>
         Se completarán a medida que avance el torneo
