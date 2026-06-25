@@ -988,31 +988,38 @@ function TabLlaves({ partidos }) {
     if (completo && tabla[2]) terceros[g] = { ...tabla[2], grupo: g };
   });
 
-  // Mejores 8 terceros (ordenados por pts, luego DG, luego GF) — solo si TODOS los grupos terminaron
+  // Mejores 8 terceros — solo cuando TODOS los grupos terminaron
   const mejoresTerceros = todosGruposCompletos
     ? Object.values(terceros).sort((a, b) => b.pts - a.pts || b.dg - a.dg || b.gf - a.gf).slice(0, 8)
     : [];
+  const gruposConMejorTercero = mejoresTerceros.map(t => t.grupo); // ej: ["A","C","E",...]
 
-  // Cruces de 16avos que NO involucran terceros (fijos según fixture oficial)
+  // Resuelve un slot de "3°(X/Y/Z/.../W)" — si el mejor tercero real pertenece a ese pool, lo muestra
+  const resolverTercero = (poolGrupos) => {
+    if (!todosGruposCompletos) return `Mejor 3° (${poolGrupos.join("/")})`;
+    const real = mejoresTerceros.find(t => poolGrupos.includes(t.grupo));
+    return real ? real.nombre : `Mejor 3° (${poolGrupos.join("/")}) — sin asignar`;
+  };
+
+  // Los 16 cruces oficiales de 16avos del Mundial 2026 (tabla FIFA fija)
   const dieciseis = [
-    { id: 1, local: primeros["A"], visitante: segundos["B"] },
-    { id: 2, local: primeros["C"], visitante: segundos["D"] },
-    { id: 3, local: primeros["E"], visitante: segundos["F"] },
-    { id: 4, local: primeros["G"], visitante: segundos["H"] },
-    { id: 5, local: primeros["I"], visitante: segundos["J"] },
-    { id: 6, local: primeros["K"], visitante: segundos["L"] },
-    { id: 7, local: primeros["B"], visitante: segundos["A"] },
-    { id: 8, local: primeros["D"], visitante: segundos["C"] },
-    { id: 9, local: primeros["F"], visitante: segundos["E"] },
-    { id: 10, local: primeros["H"], visitante: segundos["G"] },
-    { id: 11, local: primeros["J"], visitante: segundos["I"] },
-    { id: 12, local: primeros["L"], visitante: segundos["K"] },
+    { id: 1, local: primeros["E"], visitante: resolverTercero(["A","B","C","D","F"]) },
+    { id: 2, local: primeros["I"], visitante: resolverTercero(["C","D","F","G","H"]) },
+    { id: 3, local: segundos["A"], visitante: segundos["B"] },
+    { id: 4, local: primeros["F"], visitante: segundos["C"] },
+    { id: 5, local: segundos["K"], visitante: segundos["L"] },
+    { id: 6, local: primeros["H"], visitante: segundos["J"] },
+    { id: 7, local: primeros["D"], visitante: resolverTercero(["B","E","F","I","J"]) },
+    { id: 8, local: primeros["G"], visitante: resolverTercero(["A","E","H","I","J"]) },
+    { id: 9, local: primeros["C"], visitante: segundos["F"] },
+    { id: 10, local: segundos["E"], visitante: segundos["I"] },
+    { id: 11, local: primeros["A"], visitante: resolverTercero(["C","E","F","H","I"]) },
+    { id: 12, local: primeros["L"], visitante: resolverTercero(["E","H","I","J","K"]) },
+    { id: 13, local: primeros["J"], visitante: segundos["H"] },
+    { id: 14, local: segundos["D"], visitante: segundos["G"] },
+    { id: 15, local: primeros["B"], visitante: resolverTercero(["E","F","G","I","J"]) },
+    { id: 16, local: primeros["K"], visitante: resolverTercero(["D","E","I","J","L"]) },
   ];
-
-  // 4 cruces que sí involucran terceros — la FIFA define esto con una tabla de 495
-  // combinaciones posibles según qué grupos exactos aportan los 8 mejores terceros,
-  // por lo que no se puede fijar de antemano. Se muestran "por definir".
-  const crucesConTerceros = 4;
 
   const cruce = (local, visitante, label) => (
     <div style={{ display: "flex", flexDirection: "column", gap: 4, alignItems: "center" }}>
@@ -1066,14 +1073,6 @@ function TabLlaves({ partidos }) {
             {cruce(c.local, c.visitante, `Partido ${c.id}`)}
           </div>
         ))}
-        {Array.from({ length: crucesConTerceros }).map((_, i) => (
-          <div key={`tercero-${i}`} className="admin-card" style={{ padding: 16 }}>
-            {cruce("Por definir", "Por definir (mejor 3°)", `Partido ${13 + i}`)}
-          </div>
-        ))}
-      </div>
-      <div style={{ fontSize: 11, color: "var(--texto2)", marginTop: 8, fontStyle: "italic" }}>
-        Los 4 cruces con mejores terceros se confirman oficialmente cuando termina la fase de grupos — la FIFA usa una tabla con 495 combinaciones posibles según qué zonas exactas aportan los terceros clasificados.
       </div>
 
       <div className="fase-label" style={{ marginTop: 24 }}>Octavos, Cuartos, Semis y Final</div>
