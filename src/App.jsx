@@ -1468,6 +1468,10 @@ function ResumenJornada({ partidos, allPicks, usuarios }) {
 function TabPodio({ usuario, partidos, usuarios, podioPredicciones, podioResultado, onGuardarPrediccion, onGuardarResultado, esAdmin }) {
   const aprobados = usuarios.filter(u => u.aprobado && !u.es_admin);
 
+  // Fecha límite: domingo 28/06/2026 16:00 (hora Argentina) — inicio del primer partido de 16avos
+  const LIMITE_PODIO = new Date(Date.UTC(2026, 5, 28, 19, 0)); // 16:00 ARG = 19:00 UTC
+  const podioBloqueado = new Date() >= LIMITE_PODIO;
+
   // Obtener todos los equipos únicos de los partidos
   const equipos = [...new Set([
     ...partidos.map(p => p.local),
@@ -1501,6 +1505,7 @@ function TabPodio({ usuario, partidos, usuarios, podioPredicciones, podioResulta
   };
 
   const guardar = async () => {
+    if (podioBloqueado) return;
     if (!primero && !segundo && !tercero) return;
     setSaving(true);
     await onGuardarPrediccion({ primero, segundo, tercero });
@@ -1515,9 +1520,9 @@ function TabPodio({ usuario, partidos, usuarios, podioPredicciones, podioResulta
     setTimeout(() => setSavedRes(false), 2000);
   };
 
-  const select = (value, onChange, excluir = []) => (
-    <select value={value} onChange={e => onChange(e.target.value)}
-      style={{ background: "var(--fondo3)", border: `1px solid ${value ? "var(--verde)" : "var(--borde)"}`, color: value ? "var(--texto)" : "var(--texto2)", borderRadius: 8, padding: "10px 14px", fontSize: 14, fontFamily: "'DM Sans', sans-serif", cursor: "pointer", outline: "none", width: "100%" }}>
+  const select = (value, onChange, excluir = [], disabled = false) => (
+    <select value={value} onChange={e => onChange(e.target.value)} disabled={disabled}
+      style={{ background: "var(--fondo3)", border: `1px solid ${value ? "var(--verde)" : "var(--borde)"}`, color: value ? "var(--texto)" : "var(--texto2)", borderRadius: 8, padding: "10px 14px", fontSize: 14, fontFamily: "'DM Sans', sans-serif", cursor: disabled ? "not-allowed" : "pointer", outline: "none", width: "100%", opacity: disabled ? 0.6 : 1 }}>
       <option value="">— Elegir equipo —</option>
       {equipos.filter(e => !excluir.includes(e) || e === value).map(e => <option key={e} value={e}>{e}</option>)}
     </select>
@@ -1526,7 +1531,7 @@ function TabPodio({ usuario, partidos, usuarios, podioPredicciones, podioResulta
   return (
     <div>
       <div className="section-title">PREDICCIÓN DE PODIO</div>
-      <div className="section-sub">Elegí los 3 primeros del torneo · Disponible al terminar la fase de grupos</div>
+      <div className="section-sub">Elegí los 3 primeros del torneo · Se cierra el domingo 28/06 a las 16:00, cuando arranca el primer partido de 16avos</div>
 
       {/* Sistema de puntos */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10, marginBottom: 24 }}>
@@ -1542,22 +1547,27 @@ function TabPodio({ usuario, partidos, usuarios, podioPredicciones, podioResulta
       {!esAdmin && (
         <div className="admin-card" style={{ marginBottom: 20 }}>
           <div className="grupo-titulo" style={{ marginBottom: 16 }}>Tu predicción</div>
+          {podioBloqueado && (
+            <div style={{ background: "rgba(255,59,59,0.1)", border: "1px solid var(--rojo)", borderRadius: 8, padding: "10px 14px", marginBottom: 16, fontSize: 13, color: "var(--rojo)" }}>
+              🔒 La predicción de podio está cerrada — ya arrancaron los 16avos.
+            </div>
+          )}
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
             <div>
               <div style={{ fontSize: 12, color: "var(--texto2)", marginBottom: 6 }}>🥇 Campeón (10 pts)</div>
-              {select(primero, setPrimero, [segundo, tercero])}
+              {select(primero, setPrimero, [segundo, tercero], podioBloqueado)}
             </div>
             <div>
               <div style={{ fontSize: 12, color: "var(--texto2)", marginBottom: 6 }}>🥈 Subcampeón (6 pts)</div>
-              {select(segundo, setSegundo, [primero, tercero])}
+              {select(segundo, setSegundo, [primero, tercero], podioBloqueado)}
             </div>
             <div>
               <div style={{ fontSize: 12, color: "var(--texto2)", marginBottom: 6 }}>🥉 3er puesto (4 pts)</div>
-              {select(tercero, setTercero, [primero, segundo])}
+              {select(tercero, setTercero, [primero, segundo], podioBloqueado)}
             </div>
           </div>
           <div style={{ marginTop: 16, display: "flex", alignItems: "center", gap: 12 }}>
-            <button className="btn-guardar" onClick={guardar} disabled={saving}>{saving ? "..." : "GUARDAR"}</button>
+            <button className="btn-guardar" onClick={guardar} disabled={saving || podioBloqueado} style={podioBloqueado ? { opacity: 0.5, cursor: "not-allowed" } : {}}>{saving ? "..." : "GUARDAR"}</button>
             {saved && <span className="save-confirm">✓ Guardado</span>}
           </div>
         </div>
