@@ -251,9 +251,10 @@ function PartidoCard({ partido, pick, onPickSaved, onPickDeleted, esAdmin, onRes
   const pts = tieneResultado ? calcularPuntos(pick, partido) : null;
 
   const [errorGuardado, setErrorGuardado] = useState(false);
+  const faltaClasificado = esEliminatoria && hayEmpate && !clasificado;
 
   const guardarPick = async () => {
-    if (!tienePick) return;
+    if (!tienePick || faltaClasificado) return;
     setSaving(true);
     setErrorGuardado(false);
     const ok = await onPickSaved(partido.id, { goles_local: Number(gl), goles_visitante: Number(gv), clasificado });
@@ -319,7 +320,7 @@ function PartidoCard({ partido, pick, onPickSaved, onPickDeleted, esAdmin, onRes
                 <span className="score-sep">-</span>
                 <input className="score-input" type="number" min="0" max="20" value={gv} onChange={e => setGv(e.target.value)} placeholder="0" />
               </div>
-              <button className="btn-guardar" onClick={guardarPick} disabled={saving}>{saving ? "..." : "GUARDAR"}</button>
+              <button className="btn-guardar" onClick={guardarPick} disabled={saving || faltaClasificado}>{saving ? "..." : "GUARDAR"}</button>
               {pick && pick.id && (
                 <>
                   <span className="save-confirm">✓ Guardado</span>
@@ -328,21 +329,24 @@ function PartidoCard({ partido, pick, onPickSaved, onPickDeleted, esAdmin, onRes
               )}
               {errorGuardado && <span style={{ fontSize: 13, color: "var(--rojo)" }}>✗ Error al guardar. Probá de nuevo.</span>}
             </div>
+            {esEliminatoria && hayEmpate && (
+              <div className="clasificado-row">
+                <span className="clasificado-label">¿Quién clasifica?</span>
+                <div className="clasificado-btns">
+                  <button className={`clas-btn ${clasificado === partido.local ? "active" : ""}`} onClick={() => setClasificado(partido.local)}>{partido.local}</button>
+                  <button className={`clas-btn ${clasificado === partido.visitante ? "active" : ""}`} onClick={() => setClasificado(partido.visitante)}>{partido.visitante}</button>
+                </div>
+              </div>
+            )}
+            {faltaClasificado && (
+              <div style={{ fontSize: 12, color: "var(--oro)", marginTop: 8 }}>⚠️ Elegí quién clasifica antes de guardar</div>
+            )}
             {(gl === "" || gv === "") && (gl !== "" || gv !== "") && (
               <div style={{ fontSize: 12, color: "var(--oro)", marginTop: 8 }}>⚠️ Falta completar algún marcador</div>
             )}
           </>
         );
       })()}
-      {!esAdmin && esEliminatoria && hayEmpate && (
-        <div className="clasificado-row">
-          <span className="clasificado-label">¿Quién clasifica?</span>
-          <div className="clasificado-btns">
-            <button className={`clas-btn ${clasificado === partido.local ? "active" : ""}`} onClick={() => setClasificado(partido.local)}>{partido.local}</button>
-            <button className={`clas-btn ${clasificado === partido.visitante ? "active" : ""}`} onClick={() => setClasificado(partido.visitante)}>{partido.visitante}</button>
-          </div>
-        </div>
-      )}
       {!esAdmin && estadoPartido(partido) === "cerrado" && allPicks && usuarios && (() => {
         const picksPartido = usuarios
           .filter(u => u.aprobado && !u.es_admin)
