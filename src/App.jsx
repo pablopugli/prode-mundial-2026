@@ -1722,7 +1722,7 @@ function TabPodio({ usuario, partidos, usuarios, podioPredicciones, podioResulta
           </div>
           <div style={{ marginTop: 16, display: "flex", alignItems: "center", gap: 12 }}>
             <button className="btn-guardar" onClick={guardar} disabled={saving || podioBloqueado} style={podioBloqueado ? { opacity: 0.5, cursor: "not-allowed" } : {}}>{saving ? "..." : "GUARDAR"}</button>
-            {saved && <span className="save-confirm">✓ Guardado</span>}
+            {(saved || miPred.primero) && <span className="save-confirm">✓ Guardado</span>}
             {errorGuardadoPodio && <span style={{ fontSize: 13, color: "var(--rojo)" }}>✗ Error al guardar. Probá de nuevo.</span>}
           </div>
         </div>
