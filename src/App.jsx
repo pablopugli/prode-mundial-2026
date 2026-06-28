@@ -1079,10 +1079,129 @@ function TabLlaves({ partidos }) {
         ))}
       </div>
 
-      <div className="fase-label" style={{ marginTop: 24 }}>Octavos, Cuartos, Semis y Final</div>
-      <div className="admin-card" style={{ textAlign: "center", color: "var(--texto2)", fontSize: 14, padding: 32 }}>
-        Se completarán a medida que avance el torneo
-      </div>
+      {(() => {
+        // Busca el partido real cargado (por local/visitante) y devuelve el ganador, o null si no hay resultado
+        const buscarGanador = (local, visitante) => {
+          if (!local || !visitante) return null;
+          const p = partidos.find(p =>
+            (p.local === local && p.visitante === visitante) || (p.local === visitante && p.visitante === local)
+          );
+          if (!p || p.goles_local === null || p.goles_local === undefined) return null;
+          if (p.goles_local > p.goles_visitante) return p.local;
+          if (p.goles_local < p.goles_visitante) return p.visitante;
+          return p.clasificado || null; // empate -> usa el campo clasificado
+        };
+
+        const buscarPerdedor = (local, visitante) => {
+          if (!local || !visitante) return null;
+          const p = partidos.find(p =>
+            (p.local === local && p.visitante === visitante) || (p.local === visitante && p.visitante === local)
+          );
+          if (!p || p.goles_local === null || p.goles_local === undefined) return null;
+          if (p.goles_local > p.goles_visitante) return p.visitante;
+          if (p.goles_local < p.goles_visitante) return p.local;
+          // empate en eliminatoria: el que NO clasificó es el perdedor
+          if (!p.clasificado) return null;
+          return p.clasificado === p.local ? p.visitante : p.local;
+        };
+
+        // Cruces de octavos según el cuadro oficial — identificados por los equipos de 16avos
+        const octavos = [
+          { id: "P89", par1: ["Alemania","Paraguay"], par2: ["Francia","Suecia"] },
+          { id: "P90", par1: ["Sudáfrica","Canadá"], par2: ["Países Bajos","Marruecos"] },
+          { id: "P91", par1: ["Brasil","Japón"], par2: ["Costa de Marfil","Noruega"] },
+          { id: "P92", par1: ["México","Ecuador"], par2: ["Inglaterra","RD Congo"] },
+          { id: "P93", par1: ["Portugal","Croacia"], par2: ["España","Austria"] },
+          { id: "P94", par1: ["Estados Unidos","Bosnia y Herzegovina"], par2: ["Bélgica","Senegal"] },
+          { id: "P95", par1: ["Suiza","Argelia"], par2: ["Colombia","Ghana"] },
+          { id: "P96", par1: ["Argentina","Cabo Verde"], par2: ["Australia","Egipto"] },
+        ];
+
+        const resolverLado = (par) => buscarGanador(par[0], par[1]) || `Ganador (${par[0]}/${par[1]})`;
+        const octavosResueltos = octavos.map(o => ({
+          id: o.id,
+          local: resolverLado(o.par1),
+          visitante: resolverLado(o.par2),
+        }));
+
+        const porIdOctavos = {};
+        octavosResueltos.forEach(o => { porIdOctavos[o.id] = o; });
+        const buscarGanadorOctavos = (oId) => {
+          const o = porIdOctavos[oId];
+          return buscarGanador(o.local, o.visitante) || `Ganador ${oId}`;
+        };
+
+        // Cuartos de final — según el cuadro oficial
+        const cuartos = [
+          { id: "P97", local: buscarGanadorOctavos("P89"), visitante: buscarGanadorOctavos("P90") },
+          { id: "P98", local: buscarGanadorOctavos("P93"), visitante: buscarGanadorOctavos("P94") },
+          { id: "P99", local: buscarGanadorOctavos("P91"), visitante: buscarGanadorOctavos("P92") },
+          { id: "P100", local: buscarGanadorOctavos("P95"), visitante: buscarGanadorOctavos("P96") },
+        ];
+        const porIdCuartos = {};
+        cuartos.forEach(c => { porIdCuartos[c.id] = c; });
+        const buscarGanadorCuartos = (cId) => {
+          const c = porIdCuartos[cId];
+          return buscarGanador(c.local, c.visitante) || `Ganador ${cId}`;
+        };
+
+        // Semifinales — mitad superior (P97 vs P98) y mitad inferior (P99 vs P100)
+        const semis = [
+          { id: "Semifinal 1", local: buscarGanadorCuartos("P97"), visitante: buscarGanadorCuartos("P98") },
+          { id: "Semifinal 2", local: buscarGanadorCuartos("P99"), visitante: buscarGanadorCuartos("P100") },
+        ];
+        const finalLocal = buscarGanador(semis[0].local, semis[0].visitante) || `Ganador Semifinal 1`;
+        const finalVisitante = buscarGanador(semis[1].local, semis[1].visitante) || `Ganador Semifinal 2`;
+
+        // Tercer puesto — los dos perdedores de semifinales
+        const terceroLocal = buscarPerdedor(semis[0].local, semis[0].visitante) || `Perdedor Semifinal 1`;
+        const terceroVisitante = buscarPerdedor(semis[1].local, semis[1].visitante) || `Perdedor Semifinal 2`;
+
+        return (
+          <>
+            <div className="fase-label" style={{ marginTop: 24 }}>Octavos de Final</div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: 16 }}>
+              {octavosResueltos.map(o => (
+                <div key={o.id} className="admin-card" style={{ padding: 16 }}>
+                  {cruce(o.local, o.visitante, o.id)}
+                </div>
+              ))}
+            </div>
+
+            <div className="fase-label" style={{ marginTop: 24 }}>Cuartos de Final</div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: 16 }}>
+              {cuartos.map(c => (
+                <div key={c.id} className="admin-card" style={{ padding: 16 }}>
+                  {cruce(c.local, c.visitante, c.id)}
+                </div>
+              ))}
+            </div>
+
+            <div className="fase-label" style={{ marginTop: 24 }}>Semifinales</div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: 16 }}>
+              {semis.map(s => (
+                <div key={s.id} className="admin-card" style={{ padding: 16 }}>
+                  {cruce(s.local, s.visitante, s.id)}
+                </div>
+              ))}
+            </div>
+
+            <div className="fase-label" style={{ marginTop: 24 }}>🥉 Tercer puesto</div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: 16 }}>
+              <div className="admin-card" style={{ padding: 16 }}>
+                {cruce(terceroLocal, terceroVisitante, "17 de julio")}
+              </div>
+            </div>
+
+            <div className="fase-label" style={{ marginTop: 24 }}>🏆 Final</div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: 16 }}>
+              <div className="admin-card" style={{ padding: 16 }}>
+                {cruce(finalLocal, finalVisitante, "19 de julio")}
+              </div>
+            </div>
+          </>
+        );
+      })()}
     </div>
   );
 }
