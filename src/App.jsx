@@ -1621,6 +1621,17 @@ function TabPodio({ usuario, partidos, usuarios, podioPredicciones, podioResulta
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
 
+  // Sincronizar cuando llegan los datos reales desde Supabase (el useState inicial
+  // puede haberse ejecutado antes de que termine la carga)
+  useEffect(() => {
+    const pred = podioPredicciones[usuario.id];
+    if (pred) {
+      setPrimero(pred.primero || "");
+      setSegundo(pred.segundo || "");
+      setTercero(pred.tercero || "");
+    }
+  }, [podioPredicciones, usuario.id]);
+
   // Admin: resultado real
   const [resPrimero, setResPrimero] = useState(podioResultado?.primero || "");
   const [resSegundo, setResSegundo] = useState(podioResultado?.segundo || "");
