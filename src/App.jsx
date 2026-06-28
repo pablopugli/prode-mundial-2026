@@ -26,7 +26,13 @@ function calcularPuntos(pick, partido) {
   const pk1x2 = pkL > pkV ? "L" : pkL < pkV ? "V" : "E";
   if (pk1x2 === res1x2) puntos += 1;
   if (pkL === resL && pkV === resV) puntos += 2;
-  if (partido.fase !== "Grupos" && pick.clasificado && partido.clasificado && pick.clasificado === partido.clasificado) puntos += 1;
+  if (partido.fase !== "Grupos") {
+    // Quién avanza según el resultado real: si no hubo empate, el ganador; si empató, el campo "clasificado"
+    const avanzaReal = res1x2 !== "E" ? (res1x2 === "L" ? partido.local : partido.visitante) : partido.clasificado;
+    // Quién avanza según el pronóstico: si no empató en su pick, el que ganó en su pick; si empató, lo que eligió
+    const avanzaPick = pk1x2 !== "E" ? (pk1x2 === "L" ? partido.local : partido.visitante) : pick.clasificado;
+    if (avanzaReal && avanzaPick && avanzaReal === avanzaPick) puntos += 1;
+  }
   return puntos;
 }
 
@@ -688,7 +694,11 @@ function calcStats(uid, partidos, allPicks, podioPredicciones, podioResultado) {
     const pk1x2 = pkL > pkV ? "L" : pkL < pkV ? "V" : "E";
     if (pk1x2 === res1x2) { pts += 1; unox2++; }
     if (pkL === resL && pkV === resV) { pts += 2; exactos++; }
-    if (p.fase !== "Grupos" && pick.clasificado && p.clasificado && pick.clasificado === p.clasificado) { pts += 1; bonus++; }
+    if (p.fase !== "Grupos") {
+      const avanzaReal = res1x2 !== "E" ? (res1x2 === "L" ? p.local : p.visitante) : p.clasificado;
+      const avanzaPick = pk1x2 !== "E" ? (pk1x2 === "L" ? p.local : p.visitante) : pick.clasificado;
+      if (avanzaReal && avanzaPick && avanzaReal === avanzaPick) { pts += 1; bonus++; }
+    }
   });
   // Puntos podio
   if (podioPredicciones && podioResultado?.primero) {
