@@ -1639,13 +1639,21 @@ function TabPodio({ usuario, partidos, usuarios, podioPredicciones, podioResulta
     return pts;
   };
 
+  const [errorGuardadoPodio, setErrorGuardadoPodio] = useState(false);
+
   const guardar = async () => {
     if (podioBloqueado) return;
     if (!primero && !segundo && !tercero) return;
     setSaving(true);
-    await onGuardarPrediccion({ primero, segundo, tercero });
-    setSaving(false); setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
+    setErrorGuardadoPodio(false);
+    const ok = await onGuardarPrediccion({ primero, segundo, tercero });
+    setSaving(false);
+    if (ok) {
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    } else {
+      setErrorGuardadoPodio(true);
+    }
   };
 
   const guardarResultado = async () => {
@@ -1704,6 +1712,7 @@ function TabPodio({ usuario, partidos, usuarios, podioPredicciones, podioResulta
           <div style={{ marginTop: 16, display: "flex", alignItems: "center", gap: 12 }}>
             <button className="btn-guardar" onClick={guardar} disabled={saving || podioBloqueado} style={podioBloqueado ? { opacity: 0.5, cursor: "not-allowed" } : {}}>{saving ? "..." : "GUARDAR"}</button>
             {saved && <span className="save-confirm">✓ Guardado</span>}
+            {errorGuardadoPodio && <span style={{ fontSize: 13, color: "var(--rojo)" }}>✗ Error al guardar. Probá de nuevo.</span>}
           </div>
         </div>
       )}
@@ -1734,7 +1743,7 @@ function TabPodio({ usuario, partidos, usuarios, podioPredicciones, podioResulta
       )}
 
       {/* Predicciones de todos — visibles siempre para admin, para usuarios solo si ya cargaron la suya */}
-      {(esAdmin || miPred.primero) && aprobados.length > 0 && (
+      {(esAdmin || podioBloqueado) && aprobados.length > 0 && (
         <div>
           <div className="fase-label" style={{ marginTop: 0, marginBottom: 12 }}>Predicciones del grupo</div>
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
@@ -1899,10 +1908,15 @@ export default function App() {
     setAllPicks(prev => { const n = { ...prev }; if (n[usuario.id]) { n[usuario.id] = { ...n[usuario.id] }; delete n[usuario.id][partidoId]; } return n; });
   };
   const handleGuardarPrediccion = async (pred) => {
-    const { data } = await supabase.from("podio_predicciones")
+    const { data, error } = await supabase.from("podio_predicciones")
       .upsert([{ usuario_id: usuario.id, ...pred }], { onConflict: "usuario_id" })
       .select().single();
-    if (data) setPodioPredicciones(prev => ({ ...prev, [usuario.id]: data }));
+    if (error || !data) {
+      console.error("Error guardando predicción de podio:", error);
+      return false;
+    }
+    setPodioPredicciones(prev => ({ ...prev, [usuario.id]: data }));
+    return true;
   };
 
   const handleGuardarResultado = async (res) => {
