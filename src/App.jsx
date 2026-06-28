@@ -999,14 +999,17 @@ function TabLlaves({ partidos }) {
   const gruposConMejorTercero = mejoresTerceros.map(t => t.grupo); // ej: ["A","C","E",...]
 
   // Resuelve un slot de "3°(X/Y/Z/.../W)" — si el mejor tercero real pertenece a ese pool, lo muestra
+  // Cada mejor tercero solo puede ocupar UN cruce, así que se marca como usado al asignarlo
+  const tercerosUsados = new Set();
   const resolverTercero = (poolGrupos) => {
     if (!todosGruposCompletos) return `Mejor 3° (${poolGrupos.join("/")})`;
-    const real = mejoresTerceros.find(t => poolGrupos.includes(t.grupo));
-    return real ? real.nombre : `Mejor 3° (${poolGrupos.join("/")}) — sin asignar`;
+    const real = mejoresTerceros.find(t => poolGrupos.includes(t.grupo) && !tercerosUsados.has(t.grupo));
+    if (real) { tercerosUsados.add(real.grupo); return real.nombre; }
+    return `Mejor 3° (${poolGrupos.join("/")}) — sin asignar`;
   };
 
-  // Los 16 cruces oficiales de 16avos del Mundial 2026 (tabla FIFA fija)
-  const dieciseis = [
+  // Los 16 cruces oficiales de 16avos del Mundial 2026 (tabla FIFA fija) — cálculo teórico
+  const dieciseisTeorico = [
     { id: 1, local: primeros["E"], visitante: resolverTercero(["A","B","C","D","F"]) },
     { id: 2, local: primeros["I"], visitante: resolverTercero(["C","D","F","G","H"]) },
     { id: 3, local: segundos["A"], visitante: segundos["B"] },
@@ -1024,6 +1027,15 @@ function TabLlaves({ partidos }) {
     { id: 15, local: primeros["B"], visitante: resolverTercero(["E","F","G","I","J"]) },
     { id: 16, local: primeros["K"], visitante: resolverTercero(["D","E","I","J","L"]) },
   ];
+
+  // Partidos reales ya cargados en la base con fase "16avos" — si están los 16, se usan directamente
+  const partidos16Reales = partidos
+    .filter(p => p.fase === "16avos")
+    .sort((a, b) => parseFechaPartido(a.fecha, a.hora) - parseFechaPartido(b.fecha, b.hora));
+
+  const dieciseis = partidos16Reales.length >= 16
+    ? partidos16Reales.map((p, i) => ({ id: i + 1, local: p.local, visitante: p.visitante }))
+    : dieciseisTeorico;
 
   const cruce = (local, visitante, label) => (
     <div style={{ display: "flex", flexDirection: "column", gap: 4, alignItems: "center" }}>
