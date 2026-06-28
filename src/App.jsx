@@ -1843,9 +1843,18 @@ export default function App() {
     setUsuario(null);
   };
 
+  const cargarPodio = async () => {
+    const [rPodioPreds, rPodioRes] = await Promise.all([
+      supabase.from("podio_predicciones").select("*"),
+      supabase.from("podio_resultado").select("*").single(),
+    ]);
+    if (rPodioPreds.data) { const map = {}; rPodioPreds.data.forEach(p => { map[p.usuario_id] = p; }); setPodioPredicciones(map); }
+    if (rPodioRes.data) setPodioResultado(rPodioRes.data);
+  };
+
   useEffect(() => {
-    if (esPublica) { cargarUsuarios(); cargarPartidos(); cargarAllPicks(); }
-    else if (usuario?.id) { cargarPartidos(); cargarUsuarios(); cargarPicks(usuario.id); cargarAllPicks(); }
+    if (esPublica) { cargarUsuarios(); cargarPartidos(); cargarAllPicks(); cargarPodio(); }
+    else if (usuario?.id) { cargarPartidos(); cargarUsuarios(); cargarPicks(usuario.id); cargarAllPicks(); cargarPodio(); }
   }, [usuario?.id, esPublica]);
 
   // Recordatorio por mail — revisar cada 30 minutos si hay partidos sin pick en 2 horas
