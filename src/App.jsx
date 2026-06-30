@@ -365,10 +365,14 @@ function PartidoCard({ partido, pick, onPickSaved, onPickDeleted, esAdmin, onRes
             <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
               {picksPartido.map(({ nombre, pick }) => {
                 const pts = calcularPuntos(pick, partido);
+                const empatoEnPick = pick.goles_local === pick.goles_visitante;
                 return (
                   <div key={nombre} style={{ background: "var(--fondo3)", border: "1px solid var(--borde)", borderRadius: 8, padding: "6px 12px", fontSize: 13 }}>
                     <span style={{ color: "var(--texto2)", marginRight: 6 }}>{nombre}</span>
                     <span style={{ fontFamily: "'Bebas Neue', cursive", fontSize: 16 }}>{pick.goles_local} - {pick.goles_visitante}</span>
+                    {esEliminatoria && empatoEnPick && pick.clasificado && (
+                      <span style={{ marginLeft: 8, color: "var(--oro)", fontSize: 12 }}>→ clasifica: {pick.clasificado}</span>
+                    )}
                     {pts !== null && <span style={{ marginLeft: 8, color: pts > 0 ? "var(--verde)" : "var(--texto2)", fontFamily: "'Bebas Neue', cursive", fontSize: 14 }}>{pts}pts</span>}
                   </div>
                 );
