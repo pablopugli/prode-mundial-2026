@@ -1823,7 +1823,7 @@ export default function App() {
   const [podioPredicciones, setPodioPredicciones] = useState({});
   const [podioResultado, setPodioResultado] = useState(null);
 
-  const cargarPartidos = async () => { const { data } = await supabase.from("partidos").select("*").order("id"); if (data) setPartidos(data); };
+  const cargarPartidos = async () => { const { data } = await supabase.from("partidos").select("*").order("id"); if (data) setPartidos([...data].sort((a, b) => parseFechaPartido(a.fecha, a.hora) - parseFechaPartido(b.fecha, b.hora))); };
   const cargarUsuarios = async () => { const { data } = await supabase.from("usuarios").select("*").order("nombre"); if (data) setUsuarios(data); };
   const cargarPicks = async (uid) => { const { data } = await supabase.from("picks").select("*").eq("usuario_id", uid); if (data) { const map = {}; data.forEach(p => { map[p.partido_id] = p; }); setPicks(map); } };
   const cargarAllPicks = async () => { const { data } = await supabase.from("picks").select("*"); if (data) { const map = {}; data.forEach(p => { if (!map[p.usuario_id]) map[p.usuario_id] = {}; map[p.usuario_id][p.partido_id] = p; }); setAllPicks(map); } };
@@ -1832,7 +1832,7 @@ export default function App() {
     localStorage.setItem("prode_usuario", JSON.stringify(u));
     // Cargar datos ANTES de setear el usuario para evitar pantalla en blanco
     const [rPartidos, rUsuarios, rPicks, rAllPicks] = await Promise.all([
-      supabase.from("partidos").select("*").order("id"),
+      supabase.from("partidos").select("*").order("id").then(r => ({ ...r, data: r.data ? [...r.data].sort((a, b) => parseFechaPartido(a.fecha, a.hora) - parseFechaPartido(b.fecha, b.hora)) : r.data })),
       supabase.from("usuarios").select("*").order("nombre"),
       supabase.from("picks").select("*").eq("usuario_id", u.id),
       supabase.from("picks").select("*"),
